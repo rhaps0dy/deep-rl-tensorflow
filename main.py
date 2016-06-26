@@ -13,7 +13,7 @@ flags = tf.app.flags
 
 # Deep q Network
 flags.DEFINE_boolean('use_gpu', True, 'Whether to use gpu or not. gpu use NHWC and gpu use NCHW for data_format')
-flags.DEFINE_string('agent_type', 'DQN', 'The type of agent [DQN]')
+flags.DEFINE_string('agent_type', 'DQN', 'The type of agent [DQN, A3C]')
 flags.DEFINE_boolean('double_q', False, 'Whether to use double Q-learning')
 flags.DEFINE_string('network_header_type', 'nips', 'The type of network header [mlp, nature, nips]')
 flags.DEFINE_string('network_output_type', 'normal', 'The type of network output [normal, dueling]')
@@ -23,6 +23,7 @@ flags.DEFINE_string('env_name', 'Breakout-v0', 'The name of gym environment to u
 flags.DEFINE_integer('n_action_repeat', 4, 'The number of actions to repeat')
 flags.DEFINE_integer('max_random_start', 30, 'The maximum number of NOOP actions at the beginning of an episode')
 flags.DEFINE_integer('history_length', 4, 'The length of history of observation to use as an input to DQN')
+flags.DEFINE_integer('trace_steps', 1, 'The number of steps of eligibility traces')
 flags.DEFINE_integer('max_r', +1, 'The maximum value of clipped reward')
 flags.DEFINE_integer('min_r', -1, 'The minimum value of clipped reward')
 flags.DEFINE_string('observation_dims', '[80, 80]', 'The dimension of gym observation')
@@ -37,6 +38,7 @@ flags.DEFINE_float('ep_end', 0.01, 'The value of epsilnon at the end in e-greedy
 flags.DEFINE_integer('batch_size', 32, 'The size of batch for minibatch training')
 flags.DEFINE_float('max_grad_norm', 40, 'The maximum norm of gradient while updating')
 flags.DEFINE_float('discount_r', 0.99, 'The discount factor for reward')
+flags.DEFINE_integer('a3c_threads', 1, 'The number of simultaneous A3C agents')
 
 # Timer
 flags.DEFINE_integer('t_train_freq', 4, '')
@@ -67,12 +69,6 @@ flags.DEFINE_integer('random_seed', 123, 'Value of random seed')
 flags.DEFINE_string('tag', '', 'The name of tag for a model, only for debugging')
 
 conf = flags.FLAGS
-
-if conf.agent_type == 'DQN':
-  from agents.deep_q import DeepQ
-  TrainAgent = DeepQ
-else:
-  raise ValueError('Unknown agent_type: %s' % conf.agent_type)
 
 logger = logging.getLogger()
 logger.propagate = False
@@ -109,40 +105,42 @@ def main(_):
                         conf.observation_dims, conf.data_format, conf.display)
 
     if conf.network_header_type in ['nature', 'nips']:
-      pred_network = CNN(sess=sess,
-                         data_format=conf.data_format,
-                         history_length=conf.history_length,
-                         observation_dims=conf.observation_dims,
-                         output_size=env.env.action_space.n,
-                         network_header_type=conf.network_header_type,
-                         name='pred_network', trainable=True)
-      target_network = CNN(sess=sess,
-                           data_format=conf.data_format,
-                           history_length=conf.history_length,
-                           observation_dims=conf.observation_dims,
-                           output_size=env.env.action_space.n,
-                           network_header_type=conf.network_header_type,
-                           name='target_network', trainable=False)
+      NetworkHead = CNN
+      args = {'sess': sess,
+              'data_format': conf.data_format,
+              'history_length': conf.history_length,
+              'observation_dims': conf.observation_dims,
+              'output_size': env.env.action_space.n,
+              'network_output_type': conf.network_output_type}
     elif conf.network_header_type == 'mlp':
-      pred_network = MLPSmall(sess=sess,
-                              observation_dims=conf.observation_dims,
-                              history_length=conf.history_length,
-                              output_size=env.env.action_space.n,
-                              hidden_activation_fn=tf.sigmoid,
-                              network_output_type=conf.network_output_type,
-                              name='pred_network', trainable=True)
-      target_network = MLPSmall(sess=sess,
-                                observation_dims=conf.observation_dims,
-                                history_length=conf.history_length,
-                                output_size=env.env.action_space.n,
-                                hidden_activation_fn=tf.sigmoid,
-                                network_output_type=conf.network_output_type,
-                                name='target_network', trainable=False)
+      NetworkHead = MLPSmall
+      args = {'sess': sess,
+              'history_length': conf.history_length,
+              'observation_dims': conf.observation_dims,
+              'output_size': env.env.action_space.n,
+              'hidden_activation_fn': tf.sigmoid,
+              'network_output_type': conf.network_output_type}
     else:
       raise ValueError('Unkown network_header_type: %s' % (conf.network_header_type))
 
-    stat = Statistic(sess, conf.t_test, conf.t_learn_start, model_dir, pred_network.var.values())
-    agent = TrainAgent(sess, pred_network, env, stat, conf, target_network=target_network)
+    if conf.agent_type == 'DQN':
+      from agents.deep_q import DeepQ
+      pred_network = NetworkHead(name='pred_network', trainable=True, **args)
+      target_network = NetworkHead(name='target_network', trainable=False, **args)
+      Agent = DeepQ
+    elif conf.agent_type == 'A3C':
+      from agents.async import Async
+      pred_network = NetworkHead(name='shared_network', trainable=False, **args)
+      target_network = list(
+        NetworkHead(name=('pred_network_%d'%i), trainable=False, **args)
+        for i in range(conf.a3c_threads))
+      Agent = Async
+    else:
+      raise ValueError('Unkown agent_type: %s' % (conf.agent_type))
+
+    stat = Statistic(sess, conf.t_test, conf.t_learn_start, conf.trace_steps,
+                     model_dir, pred_network.var.values())
+    agent = Agent(sess, pred_network, env, stat, conf, target_network=target_network)
 
     if conf.is_train:
       agent.train(conf.t_train_max)

@@ -54,10 +54,18 @@ class Network(object):
       self.outputs = self.value + (self.advantage - 
           tf.reduce_mean(self.advantage, reduction_indices=1, keep_dims=True))
 
-    self.max_outputs = tf.reduce_max(self.outputs, reduction_indices=1)
-    self.outputs_idx = tf.placeholder('int32', [None, None], 'outputs_idx')
-    self.outputs_with_idx = tf.gather_nd(self.outputs, self.outputs_idx)
-    self.actions = tf.argmax(self.outputs, dimension=1)
+    if network_output_type in ['normal', 'dueling']:
+      self.max_outputs = tf.reduce_max(self.outputs, reduction_indices=1)
+      self.outputs_idx = tf.placeholder('int32', [None, None], 'outputs_idx')
+      self.outputs_with_idx = tf.gather_nd(self.outputs, self.outputs_idx)
+      self.actions = tf.argmax(self.outputs, dimension=1)
+    elif network_output_type == 'actor-critic':
+      self.value, self.var['val_w'], self.var['val_b'] = \
+          linear(layer, 1, weights_initializer, biases_initializer,
+                 None, trainable, name='val_out')
+      self.actions, self.var['act_w'], self.var['act_b'] = \
+          linear(layer, output_size, weights_initializer, biases_initializer,
+                 tf.nn.softmax, trainable, name='act_out')
 
   def run_copy(self):
     if self.copy_op is None:
@@ -66,6 +74,8 @@ class Network(object):
       self.sess.run(self.copy_op)
 
   def create_copy_op(self, network):
+    if self.copy_op is not None:
+      return
     with tf.variable_scope(self.name):
       copy_ops = []
 
@@ -74,6 +84,9 @@ class Network(object):
         copy_ops.append(copy_op)
 
       self.copy_op = tf.group(*copy_ops, name='copy_op')
+
+  def calc(self, attr, observation):
+    return getattr(self, attr).eval({self.inputs: observation}, session=self.sess)
 
   def calc_actions(self, observation):
     return self.actions.eval({self.inputs: observation}, session=self.sess)

@@ -5,12 +5,19 @@ import tensorflow as tf
 from logging import getLogger
 
 from .agent import Agent
+from .experience import Experience
+from .history import History
 
 logger = getLogger(__name__)
 
 class DeepQ(Agent):
   def __init__(self, sess, pred_network, env, stat, conf, target_network=None):
     super(DeepQ, self).__init__(sess, pred_network, env, stat, conf, target_network=target_network)
+    self.history = History(conf.data_format,
+        conf.batch_size, conf.history_length, conf.observation_dims)
+    self.experience = Experience(conf.data_format,
+        conf.batch_size, conf.history_length, conf.memory_size, conf.observation_dims)
+
 
     # Optimizer
     with tf.variable_scope('optimizer'):

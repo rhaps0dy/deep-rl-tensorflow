@@ -45,11 +45,7 @@ class Agent(object):
     self.target_network = target_network
     self.target_network.create_copy_op(self.pred_network)
 
-    self.env = env 
-    self.history = History(conf.data_format,
-        conf.batch_size, conf.history_length, conf.observation_dims)
-    self.experience = Experience(conf.data_format,
-        conf.batch_size, conf.history_length, conf.memory_size, conf.observation_dims)
+    self.env = env
 
     if conf.random_start:
       self.new_game = self.env.new_random_game
@@ -84,7 +80,7 @@ class Agent(object):
           (action, reward, terminal, np.mean(q), loss))
 
       if self.stat:
-        self.stat.on_step(self.t, action, reward, terminal,
+        self.stat.on_step(self.t, [action], reward, terminal,
                           ep, q, loss, is_update, self.learning_rate_op)
       if terminal:
         observation, reward, terminal = self.new_game()
