@@ -71,6 +71,7 @@ class A3CAgent(Agent):
     self.network = local_network
     self.trace_steps = conf.trace_steps
     self.learning_rate_op = learning_rate_op
+    self.entropy_regularization = conf.entropy_regularization
 
     self.history = ForwardViewHistory(conf.data_format, conf.history_length,
                                       self.trace_steps, conf.observation_dims)
@@ -79,10 +80,18 @@ class A3CAgent(Agent):
       self.returns_ph = tf.placeholder(tf.float32, [None], name='returns')
       self.actions_ph = tf.placeholder(tf.int64, [None], name='actions')
       actions_one_hot = tf.one_hot(self.actions_ph, self.env.action_size, 1.0, 0.0, axis=-1, dtype=tf.float32, name='actions_one_hot')
-      taken_action_p = tf.reduce_sum(
-        tf.mul(self.network.actions, actions_one_hot), reduction_indices=1)
       advantage = self.returns_ph - self.network.value
-      loss_actions = tf.mul(tf.log(taken_action_p), advantage)
+      if self.entropy_regularization != 0.0:
+        action_logs = tf.log(self.network.actions)
+        taken_action_p_log = tf.reduce_sum(
+          tf.mul(action_logs, actions_one_hot), reduction_indices=1)
+        entropy = -tf.reduce_sum(
+          tf.mul(self.network.actions, action_logs), reduction_indices=1)
+        loss_actions = tf.mul(taken_action_p_log, advantage) + self.entropy_regularization * entropy
+      else:
+        taken_action_p = tf.reduce_sum(
+          tf.mul(self.network.actions, actions_one_hot), reduction_indices=1)
+        loss_actions = tf.mul(tf.log(taken_action_p), advantage)
       self.loss_actions = -tf.reduce_sum(loss_actions)
       loss_values = tf.square(advantage)
       self.loss_values = tf.reduce_sum(loss_values)

@@ -61,6 +61,8 @@ flags.DEFINE_float('decay', 0.99, 'Decay of RMSProp optimizer')
 flags.DEFINE_float('momentum', 0.0, 'Momentum of RMSProp optimizer')
 flags.DEFINE_float('gamma', 0.99, 'Discount factor of return')
 flags.DEFINE_float('beta', 0.01, 'Beta of RMSProp optimizer')
+flags.DEFINE_float('entropy_regularization', 0.5,
+                   'The regularization parameter for policy entropy in A3C')
 
 # Debug
 flags.DEFINE_boolean('display', False, 'Whether to do display the game screen or not')

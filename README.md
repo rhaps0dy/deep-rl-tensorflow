@@ -59,7 +59,7 @@ Train with MLP model described in [[4]](#deep-reinforcement-learning-in-tensorfl
 
 Train with Asynchronous Advantage Actor-Critic (A3C) and MLP:
 
-    $ python main.py --agent_type=A3C --network_header_type=mlp --network_output_type=actor-critic --env_name=FrozenLake-v0 --observation_dims='[16]' --history_length=1 --t_learn_start=0.1 --learning_rate_decay_step=0.1 --history_length=1 --n_action_repeat=1 --a3c_threads=8 --trace_steps=5 --learning_rate=0.00025 --learning_rate_minimum=0.000025 --t_train_max=50
+	$ python main.py --env_name=FrozenLake-v0 --a3c_threads=8 --agent_type=A3C --history_length=1 --t_learn_start=0.1 --learning_rate_decay_step=0.1 ---learning_rate=2.5e-05 --learning_rate_minimum=2.5e-05 --n_action_repeat=1 --network_header_type=mlp --network_output_type=actor-critic --observation_dims='[16]' --t_ep_end=10 --t_train_max=50 --trace_steps=5
 
 
 ## Results

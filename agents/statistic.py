@@ -7,7 +7,7 @@ class Statistic(object):
                variables, max_to_keep=20):
     self.sess = sess
     self.t_test = t_test
-    self.iteration_goal = t_test-1
+    self.iteration_goal = t_test
     self.t_learn_start = t_learn_start
 
     self.reset()
@@ -75,7 +75,7 @@ class Statistic(object):
         self.update_count += 1
 
       if t >= self.iteration_goal and self.update_count != 0:
-        self.iteration_goal += self.t_test
+        self.iteration_goal = (t // self.t_test + 1) * self.t_test
 
         avg_q = np.mean(self.total_q)
         avg_loss_value = self.total_loss_value / self.update_count
@@ -141,8 +141,7 @@ class Statistic(object):
       fname = os.path.join(self.model_dir, ckpt_name)
       self.saver.restore(self.sess, fname)
       t = self.get_t()
-      while self.iteration_goal < t:
-        self.iteration_goal += self.t_test
+      self.iteration_goal = (t // self.t_test + 1) * self.t_test
       print(" [*] Load SUCCESS: %s" % fname)
       return True
     else:
