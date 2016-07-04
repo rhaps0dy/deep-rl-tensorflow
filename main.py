@@ -52,6 +52,7 @@ flags.DEFINE_integer('t_ep_end', 100, 'The time when epsilon reach ep_end (*= sc
 flags.DEFINE_integer('t_train_max', 5000, 'The maximum number of t while training (*= scale)')
 flags.DEFINE_float('t_learn_start', 5, 'The time when to begin training (*= scale)')
 flags.DEFINE_float('learning_rate_decay_step', 5, 'The learning rate of training (*= scale)')
+flags.DEFINE_float('entropy_regularization_decay_step', 5, 'The learning rate of training (*= scale)')
 
 # Optimizer
 flags.DEFINE_float('learning_rate', 0.025, 'The learning rate of training')
@@ -63,6 +64,8 @@ flags.DEFINE_float('gamma', 0.99, 'Discount factor of return')
 flags.DEFINE_float('beta', 0.01, 'Beta of RMSProp optimizer')
 flags.DEFINE_float('entropy_regularization', 0.5,
                    'The regularization parameter for policy entropy in A3C')
+flags.DEFINE_float('entropy_regularization_minimum', 0.0, 'The learning rate of training')
+flags.DEFINE_float('entropy_regularization_decay', 0.96, 'The learning rate of training')
 
 # Debug
 flags.DEFINE_boolean('display', False, 'Whether to do display the game screen or not')
@@ -85,7 +88,8 @@ def main(_):
   conf.observation_dims = eval(conf.observation_dims)
 
   for flag in ['memory_size', 't_target_q_update_freq', 't_test',
-               't_ep_end', 't_train_max', 't_learn_start', 'learning_rate_decay_step']:
+               't_ep_end', 't_train_max', 't_learn_start',
+               'learning_rate_decay_step', 'entropy_regularization_decay_step']:
     setattr(conf, flag, getattr(conf, flag) * conf.scale)
 
   if conf.use_gpu:
@@ -97,8 +101,9 @@ def main(_):
       ['use_gpu', 'max_random_start', 'n_worker', 'is_train', 'memory_size',
        't_save', 't_train', 'display', 'log_level', 'random_seed', 'tag', 'scale'])
 
+  device = '/gpu:0' if conf.use_gpu else '/cpu:0'
   # start
-  with tf.Session() as sess:
+  with tf.Session() as sess, tf.device(device):
     if any(name in conf.env_name for name in ['Corridor', 'FrozenLake']) :
       env = ToyEnvironment(conf.env_name, conf.n_action_repeat, conf.max_random_start,
                         conf.observation_dims, conf.data_format, conf.display)
@@ -120,6 +125,7 @@ def main(_):
               'history_length': conf.history_length,
               'observation_dims': conf.observation_dims,
               'output_size': env.env.action_space.n,
+              'hidden_sizes': [],
               'hidden_activation_fn': tf.sigmoid,
               'network_output_type': conf.network_output_type}
     else:
@@ -141,8 +147,9 @@ def main(_):
       raise ValueError('Unkown agent_type: %s' % (conf.agent_type))
 
     stat = Statistic(sess, conf.t_test, conf.t_learn_start, conf.trace_steps,
-                     model_dir, pred_network.var.values())
+                     model_dir)
     agent = Agent(sess, pred_network, env, stat, conf, target_network=target_network)
+    stat.create_writer(pred_network.var.values())
 
     if conf.is_train:
       agent.train(conf.t_train_max)

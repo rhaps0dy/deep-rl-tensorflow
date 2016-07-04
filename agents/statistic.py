@@ -3,8 +3,7 @@ import numpy as np
 import tensorflow as tf
 
 class Statistic(object):
-  def __init__(self, sess, t_test, t_learn_start, trace_steps, model_dir,
-               variables, max_to_keep=20):
+  def __init__(self, sess, t_test, t_learn_start, trace_steps, model_dir):
     self.sess = sess
     self.t_test = t_test
     self.iteration_goal = t_test
@@ -20,6 +19,8 @@ class Statistic(object):
         self.t_add_op.append(self.t_op.assign_add(i))
 
     self.model_dir = model_dir
+
+  def create_writer(self, variables, max_to_keep=20):
     self.saver = tf.train.Saver(variables + [self.t_op], max_to_keep=max_to_keep)
     self.writer = tf.train.SummaryWriter('./logs/%s' % self.model_dir, self.sess.graph)
 

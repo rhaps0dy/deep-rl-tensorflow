@@ -29,6 +29,7 @@ class MLPSmall(Network):
         assert layer.get_shape().as_list()[1] == 1
         layer = tf.reshape(layer, [-1] + layer.get_shape().as_list()[2:])
 
+      hidden_sizes = []
       for idx, hidden_size in enumerate(hidden_sizes):
         w_name, b_name = 'w_%d' % idx, 'b_%d' % idx
 

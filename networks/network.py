@@ -64,7 +64,22 @@ class Network(object):
           linear(layer, 1, weights_initializer, biases_initializer,
                  None, trainable, name='val_out')
       self.actions, self.var['act_w'], self.var['act_b'] = \
-          linear(layer, output_size, weights_initializer, biases_initializer,
+          linear(layer, output_size, lambda a, dtype: [[0, 3, 0, 0],
+       [0, 0, 0, 3],
+       [0, 3, 0, 0],
+       [0, 0, 0, 3],
+       [3, 0, 0, 0],
+       [3, 3, 3, 3],
+       [0, 3, 0, 0],
+       [3, 3, 3, 3],
+       [0, 0, 0, 3],
+       [0, 3, 0, 0],
+       [3, 0, 0, 0],
+       [3, 3, 3, 3],
+       [3, 3, 3, 3],
+       [0, 0, 3, 0],
+       [0, 3, 0, 0],
+       [3, 3, 3, 3]], biases_initializer,
                  tf.nn.softmax, trainable, name='act_out')
 
   def run_copy(self):
