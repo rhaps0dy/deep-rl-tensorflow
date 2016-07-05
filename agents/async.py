@@ -12,7 +12,7 @@ from .history import ForwardViewHistory
 logger = getLogger(__name__)
 
 class Async:
-  def __init__(self, sess, global_network, env, stat, conf, target_network):
+  def __init__(self, sess, global_network, env, stat, conf, target_network, pred_networks):
     learning_rate_op = tf.maximum(conf.learning_rate_minimum,
         tf.train.exponential_decay(
             conf.learning_rate,
@@ -32,14 +32,15 @@ class Async:
     act_optimizer = tf.train.RMSPropOptimizer(learning_rate_op,
                                           momentum=0.95, epsilon=0.01, use_locking=True)
     self.stat = stat
-    self.global_t = [0]
+    self.global_t = [0, 0]
     self.global_t_semaphore = threading.Semaphore(1)
 
     self.agents = []
+    target_network.create_copy_op(global_network)
     thread_id = 0
-    for nn in target_network:
-      self.agents.append(A3CAgent(sess, global_network, env, stat, conf,
-                                  local_network=nn, tid=thread_id,
+    for nn in pred_networks:
+      self.agents.append(DQNAgent(sess, global_network, target_network, env,
+                                  stat, conf, local_network=nn, tid=thread_id,
                                   val_optimizer=val_optimizer,
                                   act_optimizer=act_optimizer,
                                   global_t=self.global_t,
@@ -70,13 +71,15 @@ class Async:
       t.join()
 
 class A3CAgent(Agent):
-  def __init__(self, sess, global_network, env, stat, conf, local_network, tid,
-               val_optimizer, act_optimizer, global_t, global_t_semaphore, learning_rate_op,
-               entropy_regularization_op):
+  def __init__(self, sess, global_network, target_network, env, stat, conf,
+               local_network, tid, val_optimizer, act_optimizer, global_t,
+               global_t_semaphore, learning_rate_op, entropy_regularization_op):
     super(A3CAgent, self).__init__(sess, global_network, env, stat, conf, target_network=local_network)
     self.tid = tid
     self.global_t = global_t
     self.global_t_semaphore = global_t_semaphore
+    del self.pred_network
+    del self.target_network
     self.global_network = global_network
     self.network = local_network
     self.trace_steps = conf.trace_steps
@@ -102,9 +105,9 @@ class A3CAgent(Agent):
         taken_action_p = tf.reduce_sum(
           tf.mul(self.network.actions, actions_one_hot), reduction_indices=1)
         loss_actions = tf.mul(tf.log(taken_action_p), advantage)
-      self.loss_actions = -tf.reduce_sum(loss_actions)
+      self.loss_actions = -tf.reduce_mean(loss_actions)
       loss_values = tf.square(advantage)
-      self.loss_values = tf.reduce_sum(loss_values)
+      self.loss_values = tf.reduce_mean(loss_values)
 
       def grads(loss, exclude):
         vs = list(set(self.network.var.keys()) - exclude)
@@ -187,6 +190,120 @@ class A3CAgent(Agent):
         self.stat.on_step(self.global_t[0], self.actions[:real_time_steps],
                           reward, terminal, 0, q, loss_value, True,
                           self.learning_rate_op, real_time_steps, loss_action)
+      self.global_t[0] += real_time_steps
+      gt = self.global_t[0]
+      self.global_t_semaphore.release()
+
+      if self.tid == 0:
+        prev_update_t = update_t
+        update_t = gt
+        progress_bar.update(update_t - prev_update_t)
+
+class DQNAgent(Agent):
+  def __init__(self, sess, global_network, target_network, env, stat, conf,
+               local_network, tid, val_optimizer, act_optimizer, global_t,
+               global_t_semaphore, learning_rate_op, entropy_regularization_op):
+    super(DQNAgent, self).__init__(sess, global_network, env, stat, conf,
+                                   target_network=local_network)
+    self.tid = tid
+    self.global_t = global_t
+    self.global_t_semaphore = global_t_semaphore
+    del self.pred_network
+    self.target_network = target_network
+    self.network = local_network
+    self.trace_steps = conf.trace_steps
+    self.learning_rate_op = learning_rate_op
+    self.entropy_regularization_op = entropy_regularization_op
+
+    self.history = ForwardViewHistory(conf.data_format, conf.history_length,
+                                      self.trace_steps, conf.observation_dims)
+
+    with tf.variable_scope('thread_%d' % (self.tid)):
+      self.returns_ph = tf.placeholder(tf.float32, [None], name='returns')
+      self.actions_ph = tf.placeholder(tf.int64, [None], name='actions')
+      actions_one_hot = tf.one_hot(self.actions_ph, self.env.action_size, 1.0, 0.0, axis=-1, dtype=tf.float32, name='actions_one_hot')
+      pred_q = tf.reduce_sum(self.network.outputs * actions_one_hot, reduction_indices=1, name='q_acted')
+      self.loss = tf.reduce_mean(tf.square(self.returns_ph - pred_q))
+
+      def grads(loss, exclude):
+        vs = list(set(self.network.var.keys()) - exclude)
+        gs = tf.gradients(loss, [self.network.var[v] for v in vs])
+        if self.max_grad_norm > 0.:
+          for i in xrange(len(gs)):
+            gs[i] = tf.clip_by_norm(gs[i], self.max_grad_norm)
+        return zip(gs, map(global_network.var.get, vs))
+
+      grads = grads(self.loss, set())
+      self.optim = val_optimizer.apply_gradients(grads)
+
+      self.returns = np.zeros([self.trace_steps], dtype=np.float32)
+      self.actions = np.zeros([self.trace_steps], dtype=np.int64)
+
+
+  def train(self, max_t, cont):
+    # 0. Prepare training
+
+    if self.tid == 0:
+      progress_bar = tqdm(total=max_t)
+      prev_update_t = update_t = 0
+
+    terminal = True
+    while cont[0] and self.global_t[0] <= max_t:
+      epsilon = (self.ep_end +
+          max(0., (self.ep_start - self.ep_end)
+            * (self.t_ep_end - max(0., self.global_t[0] - self.t_learn_start)) / self.t_ep_end))
+      self.global_t_semaphore.acquire()
+      if self.global_t[0] >= self.global_t[1]:
+        self.target_network.run_copy()
+        self.global_t[1] = (self.global_t[0] // self.t_target_q_update_freq + 1) * \
+                            self.t_target_q_update_freq
+      self.global_t_semaphore.release()
+      self.network.run_copy()
+      if terminal:
+        observation, _, _ = self.new_game()
+        self.history.reset()
+        self.history.fill(observation)
+      self.history.advance()
+      t = 0
+      reward = 0.
+      terminal = False
+      while t < self.trace_steps and not terminal:
+        q_values = self.network.calc('outputs', [self.history.get(t)])
+        #self.env.env.render()
+        #print q_values
+        #raw_input()
+        if np.random.random() < epsilon:
+          self.actions[t] = np.random.random_integers(0, 3)
+        else:
+          self.actions[t] = np.argmax(q_values.flatten())
+        observation, r, terminal, _ = \
+          self.env.step(self.actions[t], is_training=True)
+        reward += r
+        self.returns[t] = r
+        self.history.add(observation)
+        t += 1
+      if terminal:
+        value = 0.
+      else:
+        value = self.target_network.calc('outputs', [self.history.get(t)]).max()
+
+      real_time_steps = t
+      t -= 1
+      while t >= 0:
+        self.returns[t] += self.discount_r * value
+        value = self.returns[t]
+        t -= 1
+
+      dc = {self.network.inputs: self.history.get_all(),
+          self.returns_ph: self.returns[:real_time_steps],
+          self.actions_ph: self.actions[:real_time_steps]}
+      _, loss, q = self.sess.run([self.optim, self.loss, self.network.outputs], dc)
+
+      self.global_t_semaphore.acquire()
+      if self.stat:
+        self.stat.on_step(self.global_t[0], self.actions[:real_time_steps],
+                          reward, terminal, 0, q.mean(axis=1), loss, True,
+                          self.learning_rate_op, real_time_steps, 0)
       self.global_t[0] += real_time_steps
       gt = self.global_t[0]
       self.global_t_semaphore.release()

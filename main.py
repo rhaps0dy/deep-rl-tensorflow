@@ -34,7 +34,7 @@ flags.DEFINE_boolean('is_train', True, 'Whether to do training or testing')
 flags.DEFINE_integer('max_delta', None, 'The maximum value of delta')
 flags.DEFINE_integer('min_delta', None, 'The minimum value of delta')
 flags.DEFINE_float('ep_start', 1., 'The value of epsilon at start in e-greedy')
-flags.DEFINE_float('ep_end', 0.01, 'The value of epsilnon at the end in e-greedy')
+flags.DEFINE_float('ep_end', 0.1, 'The value of epsilnon at the end in e-greedy')
 flags.DEFINE_integer('batch_size', 32, 'The size of batch for minibatch training')
 flags.DEFINE_float('max_grad_norm', 40, 'The maximum norm of gradient while updating')
 flags.DEFINE_float('discount_r', 0.99, 'The discount factor for reward')
@@ -125,31 +125,33 @@ def main(_):
               'history_length': conf.history_length,
               'observation_dims': conf.observation_dims,
               'output_size': env.env.action_space.n,
-              'hidden_sizes': [],
               'hidden_activation_fn': tf.sigmoid,
               'network_output_type': conf.network_output_type}
     else:
       raise ValueError('Unkown network_header_type: %s' % (conf.network_header_type))
 
+    stat = Statistic(sess, conf.t_test, conf.t_learn_start, conf.trace_steps,
+                     model_dir)
+
     if conf.agent_type == 'DQN':
       from agents.deep_q import DeepQ
       pred_network = NetworkHead(name='pred_network', trainable=True, **args)
+      stat.create_writer(pred_network.var.values())
       target_network = NetworkHead(name='target_network', trainable=False, **args)
-      Agent = DeepQ
+      agent = DeepQ(sess, pred_network, env, stat, conf,
+                    target_network=target_network)
     elif conf.agent_type == 'A3C':
       from agents.async import Async
-      pred_network = NetworkHead(name='shared_network', trainable=False, **args)
-      target_network = list(
+      global_network = NetworkHead(name='global_network', trainable=False, **args)
+      stat.create_writer(global_network.var.values())
+      target_network = NetworkHead(name='target_network', trainable=False, **args)
+      pred_networks = list(
         NetworkHead(name=('pred_network_%d'%i), trainable=False, **args)
         for i in range(conf.a3c_threads))
-      Agent = Async
+      agent = Async(sess, global_network, env, stat, conf,
+                    target_network=target_network, pred_networks=pred_networks)
     else:
       raise ValueError('Unkown agent_type: %s' % (conf.agent_type))
-
-    stat = Statistic(sess, conf.t_test, conf.t_learn_start, conf.trace_steps,
-                     model_dir)
-    agent = Agent(sess, pred_network, env, stat, conf, target_network=target_network)
-    stat.create_writer(pred_network.var.values())
 
     if conf.is_train:
       agent.train(conf.t_train_max)
