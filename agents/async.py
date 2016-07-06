@@ -27,10 +27,12 @@ class Async:
             conf.entropy_regularization_decay_step,
             conf.entropy_regularization_decay,
             staircase=True))
-    val_optimizer = tf.train.RMSPropOptimizer(learning_rate_op,
-                                          momentum=0.95, epsilon=0.01, use_locking=True)
-    act_optimizer = tf.train.RMSPropOptimizer(learning_rate_op,
-                                          momentum=0.95, epsilon=0.01, use_locking=True)
+    val_optimizer = tf.train.RMSPropOptimizer(
+      learning_rate_op, decay=conf.decay, momentum=conf.momentum,
+      epsilon=conf.rmsprop_epsilon, use_locking=False)
+    act_optimizer = tf.train.RMSPropOptimizer(
+      learning_rate_op, decay=conf.decay, momentum=conf.momentum,
+      epsilon=conf.rmsprop_epsilon, use_locking=False)
     self.stat = stat
     self.global_t = [0, 0]
     self.global_t_semaphore = threading.Semaphore(1)
@@ -112,9 +114,10 @@ class A3CAgent(Agent):
       def grads(loss, exclude):
         vs = list(set(self.network.var.keys()) - exclude)
         gs = tf.gradients(loss, [self.network.var[v] for v in vs])
-        if self.max_grad_norm > 0.:
-          for i in xrange(len(gs)):
+        for i in xrange(len(gs)):
+          if self.max_grad_norm > 0.:
             gs[i] = tf.clip_by_norm(gs[i], self.max_grad_norm)
+          gs[i] /= conf.async_threads
         return zip(gs, map(self.network.var.get, vs))
 
       grads_values = grads(self.loss_values, {'act_b', 'act_w'})
@@ -158,6 +161,7 @@ class A3CAgent(Agent):
         value = 0.
         observation, _, _ = self.new_game()
       else:
+        #value = 0.
         value = self.network.calc('value', [self.history.get(t)])
 
       real_time_steps = t
@@ -228,9 +232,10 @@ class DQNAgent(Agent):
       def grads(loss, exclude):
         vs = list(set(self.network.var.keys()) - exclude)
         gs = tf.gradients(loss, [self.network.var[v] for v in vs])
-        if self.max_grad_norm > 0.:
-          for i in xrange(len(gs)):
+        for i in xrange(len(gs)):
+          if self.max_grad_norm > 0.:
             gs[i] = tf.clip_by_norm(gs[i], self.max_grad_norm)
+          gs[i] /= conf.async_threads
         return zip(gs, map(global_network.var.get, vs))
 
       grads = grads(self.loss, set())
@@ -285,7 +290,8 @@ class DQNAgent(Agent):
       if terminal:
         value = 0.
       else:
-        value = self.target_network.calc('outputs', [self.history.get(t)]).max()
+        value = 0.
+        #value = self.target_network.calc('outputs', [self.history.get(t)]).max()
 
       real_time_steps = t
       t -= 1

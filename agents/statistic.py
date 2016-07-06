@@ -12,7 +12,7 @@ class Statistic(object):
     self.reset()
     self.max_avg_ep_reward = 0
 
-    with tf.variable_scope('t'):
+    with tf.device('/cpu:0'), tf.variable_scope('t'):
       self.t_op = tf.Variable(0, trainable=False, name='t')
       self.t_add_op = [None]
       for i in xrange(1, trace_steps+1):
@@ -21,28 +21,29 @@ class Statistic(object):
     self.model_dir = model_dir
 
   def create_writer(self, variables, max_to_keep=20):
-    self.saver = tf.train.Saver(variables + [self.t_op], max_to_keep=max_to_keep)
-    self.writer = tf.train.SummaryWriter('./logs/%s' % self.model_dir, self.sess.graph)
+    with tf.device('/cpu:0'):
+      self.saver = tf.train.Saver(variables + [self.t_op], max_to_keep=max_to_keep)
+      self.writer = tf.train.SummaryWriter('./logs/%s' % self.model_dir, self.sess.graph)
 
-    with tf.variable_scope('summary'):
-      scalar_summary_tags = [
-        'average/reward', 'average/value loss', 'average/action loss', 'average/q',
-        'episode/max reward', 'episode/min reward', 'episode/avg reward',
-        'episode/num of game', 'training/learning_rate', 'training/epsilon',
-      ]
+      with tf.variable_scope('summary'):
+        scalar_summary_tags = [
+          'average/reward', 'average/value loss', 'average/action loss', 'average/q',
+          'episode/max reward', 'episode/min reward', 'episode/avg reward',
+          'episode/num of game', 'training/learning_rate', 'training/epsilon',
+        ]
 
-      self.summary_placeholders = {}
-      self.summary_ops = {}
+        self.summary_placeholders = {}
+        self.summary_ops = {}
 
-      for tag in scalar_summary_tags:
-        self.summary_placeholders[tag] = tf.placeholder('float32', None, name=tag.replace(' ', '_'))
-        self.summary_ops[tag]  = tf.scalar_summary(tag, self.summary_placeholders[tag])
+        for tag in scalar_summary_tags:
+          self.summary_placeholders[tag] = tf.placeholder('float32', None, name=tag.replace(' ', '_'))
+          self.summary_ops[tag]  = tf.scalar_summary(tag, self.summary_placeholders[tag])
 
-      histogram_summary_tags = ['episode/rewards', 'episode/actions']
+        histogram_summary_tags = ['episode/rewards', 'episode/actions']
 
-      for tag in histogram_summary_tags:
-        self.summary_placeholders[tag] = tf.placeholder('float32', None, name=tag.replace(' ', '_'))
-        self.summary_ops[tag]  = tf.histogram_summary(tag, self.summary_placeholders[tag])
+        for tag in histogram_summary_tags:
+          self.summary_placeholders[tag] = tf.placeholder('float32', None, name=tag.replace(' ', '_'))
+          self.summary_ops[tag]  = tf.histogram_summary(tag, self.summary_placeholders[tag])
 
 
   def reset(self):

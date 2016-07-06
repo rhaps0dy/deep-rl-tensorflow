@@ -38,7 +38,7 @@ flags.DEFINE_float('ep_end', 0.1, 'The value of epsilnon at the end in e-greedy'
 flags.DEFINE_integer('batch_size', 32, 'The size of batch for minibatch training')
 flags.DEFINE_float('max_grad_norm', 40, 'The maximum norm of gradient while updating')
 flags.DEFINE_float('discount_r', 0.99, 'The discount factor for reward')
-flags.DEFINE_integer('a3c_threads', 1, 'The number of simultaneous A3C agents')
+flags.DEFINE_integer('async_threads', 1, 'The number of simultaneous A3C agents')
 
 # Timer
 flags.DEFINE_integer('t_train_freq', 4, '')
@@ -61,11 +61,11 @@ flags.DEFINE_float('learning_rate_decay', 0.96, 'The learning rate of training')
 flags.DEFINE_float('decay', 0.99, 'Decay of RMSProp optimizer')
 flags.DEFINE_float('momentum', 0.0, 'Momentum of RMSProp optimizer')
 flags.DEFINE_float('gamma', 0.99, 'Discount factor of return')
-flags.DEFINE_float('beta', 0.01, 'Beta of RMSProp optimizer')
+flags.DEFINE_float('rmsprop_epsilon', 0.01, 'Epsilon of RMSProp optimizer')
 flags.DEFINE_float('entropy_regularization', 0.5,
                    'The regularization parameter for policy entropy in A3C')
-flags.DEFINE_float('entropy_regularization_minimum', 0.0, 'The learning rate of training')
-flags.DEFINE_float('entropy_regularization_decay', 0.96, 'The learning rate of training')
+flags.DEFINE_float('entropy_regularization_minimum', 0.0, 'The minimum entropy regularization')
+flags.DEFINE_float('entropy_regularization_decay', 0.96, 'The entropy regularization decay')
 
 # Debug
 flags.DEFINE_boolean('display', False, 'Whether to do display the game screen or not')
@@ -91,6 +91,8 @@ def main(_):
                't_ep_end', 't_train_max', 't_learn_start',
                'learning_rate_decay_step', 'entropy_regularization_decay_step']:
     setattr(conf, flag, getattr(conf, flag) * conf.scale)
+#  for flag in ['learning_rate', 'learning_rate_minimum']:
+#    setattr(conf, flag, getattr(conf, flag) / conf.async_threads)
 
   if conf.use_gpu:
     conf.data_format = 'NCHW'
@@ -147,7 +149,7 @@ def main(_):
       target_network = NetworkHead(name='target_network', trainable=False, **args)
       pred_networks = list(
         NetworkHead(name=('pred_network_%d'%i), trainable=False, **args)
-        for i in range(conf.a3c_threads))
+        for i in range(conf.async_threads))
       agent = Async(sess, global_network, env, stat, conf,
                     target_network=target_network, pred_networks=pred_networks)
     else:
