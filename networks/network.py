@@ -14,7 +14,7 @@ class Network(object):
       weights_initializer, biases_initializer, hidden_activation_fn, 
       output_activation_fn, trainable):
     if network_output_type == 'normal':
-      self.outputs, self.var['w_out'], self.var['b_out'] = \
+      self.outputs, self.var['w_out'] = \
           linear(layer, output_size, weights_initializer,
                  biases_initializer, output_activation_fn, trainable, name='out')
     elif network_output_type == 'dueling':

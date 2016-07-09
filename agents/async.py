@@ -8,11 +8,12 @@ from tqdm import tqdm
 
 from .agent import Agent
 from .history import ForwardViewHistory
+#import pygame
 
 logger = getLogger(__name__)
 
 class Async:
-  def __init__(self, sess, global_network, env, stat, conf, target_network, pred_networks):
+  def __init__(self, sess, global_network, envs, stat, conf, target_network, pred_networks):
     learning_rate_op = tf.maximum(conf.learning_rate_minimum,
         tf.train.exponential_decay(
             conf.learning_rate,
@@ -27,12 +28,13 @@ class Async:
             conf.entropy_regularization_decay_step,
             conf.entropy_regularization_decay,
             staircase=True))
-    val_optimizer = tf.train.RMSPropOptimizer(
-      learning_rate_op, decay=conf.decay, momentum=conf.momentum,
-      epsilon=conf.rmsprop_epsilon, use_locking=False)
+#    val_optimizer = tf.train.RMSPropOptimizer(
+#      learning_rate_op, decay=conf.decay, momentum=conf.momentum,
+#      epsilon=conf.rmsprop_epsilon, use_locking=True)
+    val_optimizer = tf.train.GradientDescentOptimizer(0.001)
     act_optimizer = tf.train.RMSPropOptimizer(
       learning_rate_op, decay=conf.decay, momentum=conf.momentum,
-      epsilon=conf.rmsprop_epsilon, use_locking=False)
+      epsilon=conf.rmsprop_epsilon, use_locking=True)
     self.stat = stat
     self.global_t = [0, 0]
     self.global_t_semaphore = threading.Semaphore(1)
@@ -40,7 +42,7 @@ class Async:
     self.agents = []
     target_network.create_copy_op(global_network)
     thread_id = 0
-    for nn in pred_networks:
+    for nn, env in zip(pred_networks, envs):
       self.agents.append(DQNAgent(sess, global_network, target_network, env,
                                   stat, conf, local_network=nn, tid=thread_id,
                                   val_optimizer=val_optimizer,
@@ -63,10 +65,12 @@ class Async:
     try:
       threads = []
       for a in self.agents[1:]:
-        ta = threading.Thread(target=lambda: a.train(t_train_max, cont))
+        a.train_prepare(t_train_max, cont)
+        ta = threading.Thread(target=a.train)
         threads.append(ta)
         ta.start()
-      self.agents[0].train(t_train_max, cont)
+      self.agents[0].train_prepare(t_train_max, cont)
+      self.agents[0].train()
     except KeyboardInterrupt:
       cont[0] = False
     for t in threads:
@@ -117,7 +121,7 @@ class A3CAgent(Agent):
         for i in xrange(len(gs)):
           if self.max_grad_norm > 0.:
             gs[i] = tf.clip_by_norm(gs[i], self.max_grad_norm)
-          gs[i] /= conf.async_threads
+#          gs[i] /= conf.async_threads
         return zip(gs, map(self.network.var.get, vs))
 
       grads_values = grads(self.loss_values, {'act_b', 'act_w'})
@@ -132,17 +136,20 @@ class A3CAgent(Agent):
         np.array(range(self.network.actions.get_shape().as_list()[1]), dtype=np.int64)
 
 
-  def train(self, max_t, cont):
+  def train_prepare(self, max_t, cont):
+    self.max_t, self.cont = max_t, cont
+
+  def train(self):
     # 0. Prepare training
     observation, _, terminal = self.new_game()
     self.history.reset()
     self.history.fill(observation)
 
     if self.tid == 0:
-      progress_bar = tqdm(total=max_t)
+      progress_bar = tqdm(total=self.max_t)
       prev_update_t = update_t = 0
 
-    while cont[0] and self.global_t[0] <= max_t:
+    while self.cont[0] and self.global_t[0] <= self.max_t:
       self.network.run_copy()
       self.history.advance()
       t = 0
@@ -185,10 +192,6 @@ class A3CAgent(Agent):
           self.network.value, self.network.actions, self.network.var['val_w'],
           self.network.var['act_w'],], dc)
 
-#      if self.global_t[0] % 2000 == 0 and self.tid==0:
-#        for v in ['q', 'act', 'vw', 'aw']:
-#          print v, locals()[v]
-
       self.global_t_semaphore.acquire()
       if self.stat:
         self.stat.on_step(self.global_t[0], self.actions[:real_time_steps],
@@ -210,10 +213,14 @@ class DQNAgent(Agent):
     super(DQNAgent, self).__init__(sess, global_network, env, stat, conf,
                                    target_network=local_network)
     self.tid = tid
+#    if self.tid == 0:
+#      pygame.init()
+#      self.screen = pygame.display.set_mode((52*4 * 4, 53*4))
     self.global_t = global_t
     self.global_t_semaphore = global_t_semaphore
     del self.pred_network
     self.target_network = target_network
+    self.global_network = global_network
     self.network = local_network
     self.trace_steps = conf.trace_steps
     self.learning_rate_op = learning_rate_op
@@ -227,36 +234,47 @@ class DQNAgent(Agent):
       self.actions_ph = tf.placeholder(tf.int64, [None], name='actions')
       actions_one_hot = tf.one_hot(self.actions_ph, self.env.action_size, 1.0, 0.0, axis=-1, dtype=tf.float32, name='actions_one_hot')
       pred_q = tf.reduce_sum(self.network.outputs * actions_one_hot, reduction_indices=1, name='q_acted')
-      self.loss = tf.reduce_mean(tf.square(self.returns_ph - pred_q))
+      self.loss = tf.reduce_sum(tf.square(self.returns_ph - pred_q))
 
       def grads(loss, exclude):
         vs = list(set(self.network.var.keys()) - exclude)
         gs = tf.gradients(loss, [self.network.var[v] for v in vs])
-        for i in xrange(len(gs)):
-          if self.max_grad_norm > 0.:
-            gs[i] = tf.clip_by_norm(gs[i], self.max_grad_norm)
-          gs[i] /= conf.async_threads
+        #for i in xrange(len(gs)):
+        #  if self.max_grad_norm > 0.:
+        #    gs[i] = tf.clip_by_norm(gs[i], self.max_grad_norm)
+        #  gs[i] /= conf.async_threads
         return zip(gs, map(global_network.var.get, vs))
 
-      grads = grads(self.loss, set())
-      self.optim = val_optimizer.apply_gradients(grads)
+      self.grads_and_vars = grads(self.loss, set())
+      self.optim = val_optimizer.apply_gradients(self.grads_and_vars)
 
       self.returns = np.zeros([self.trace_steps], dtype=np.float32)
       self.actions = np.zeros([self.trace_steps], dtype=np.int64)
+#      self.LIST_OF_VARS = [tf.clip_by_value(s*100 + 127, 0, 255) for s in [
+        #self.global_network.var['w_0'], self.global_network.var['b_0'],
+        #self.global_network.var['w_1'], self.global_network.var['b_1'],
+        #self.global_network.var['w_2'], self.global_network.var['b_2'],
+#        self.global_network.var['w_out'], self.global_network.var['b_out'],]]
 
 
-  def train(self, max_t, cont):
+  def train_prepare(self, max_t, cont):
+    self.max_t, self.cont = max_t, cont
+
+  def train(self):
     # 0. Prepare training
 
     if self.tid == 0:
-      progress_bar = tqdm(total=max_t)
+      progress_bar = tqdm(total=self.max_t)
       prev_update_t = update_t = 0
 
     terminal = True
-    while cont[0] and self.global_t[0] <= max_t:
+#    n_iter = -1
+    while self.cont[0] and self.global_t[0] <= self.max_t:
+#      n_iter += 1
       epsilon = (self.ep_end +
           max(0., (self.ep_start - self.ep_end)
             * (self.t_ep_end - max(0., self.global_t[0] - self.t_learn_start)) / self.t_ep_end))
+      epsilon = 0.05
       self.global_t_semaphore.acquire()
       if self.global_t[0] >= self.global_t[1]:
         self.target_network.run_copy()
@@ -266,17 +284,13 @@ class DQNAgent(Agent):
       self.network.run_copy()
       if terminal:
         observation, _, _ = self.new_game()
-        self.history.reset()
         self.history.fill(observation)
       self.history.advance()
       t = 0
       reward = 0.
       terminal = False
       while t < self.trace_steps and not terminal:
-        q_values = self.network.calc('outputs', [self.history.get(t)])
-        #self.env.env.render()
-        #print q_values
-        #raw_input()
+        q_values = self.network.outputs.eval({self.network.inputs: [self.history.get(t)]}, session=self.sess)
         if np.random.random() < epsilon:
           self.actions[t] = np.random.random_integers(0, 3)
         else:
@@ -290,8 +304,7 @@ class DQNAgent(Agent):
       if terminal:
         value = 0.
       else:
-        value = 0.
-        #value = self.target_network.calc('outputs', [self.history.get(t)]).max()
+        value = self.target_network.calc('outputs', [self.history.get(t)]).max()
 
       real_time_steps = t
       t -= 1
@@ -304,11 +317,27 @@ class DQNAgent(Agent):
           self.returns_ph: self.returns[:real_time_steps],
           self.actions_ph: self.actions[:real_time_steps]}
       _, loss, q = self.sess.run([self.optim, self.loss, self.network.outputs], dc)
+#      if self.tid == 0 and n_iter%1000 == 0:
+#        vals = self.sess.run(self.LIST_OF_VARS)
+#        r = pygame.rect.Rect(0, 0, 4, 4)
+#        for i in xrange(len(vals)):
+#          if i%2 == 0:
+#            for y in xrange(vals[i].shape[0]):
+#              for x in xrange(vals[i].shape[1]):
+#                r.y = y*4
+#                r.x = (52*(i//2) + x)*4
+#                self.screen.fill((vals[i][y,x], 0, 0), r)
+#          else:
+#            r.y = 52*4
+#            for x in xrange(vals[i].shape[0]):
+#              r.x = (52*(i//2) + x)*4
+#              self.screen.fill((0, vals[i][x], 0), r)
+#        pygame.display.flip()
 
       self.global_t_semaphore.acquire()
       if self.stat:
         self.stat.on_step(self.global_t[0], self.actions[:real_time_steps],
-                          reward, terminal, 0, q.mean(axis=1), loss, True,
+                          reward, terminal, epsilon, q.mean(axis=1), loss, True,
                           self.learning_rate_op, real_time_steps, 0)
       self.global_t[0] += real_time_steps
       gt = self.global_t[0]

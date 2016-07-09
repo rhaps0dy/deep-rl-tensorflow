@@ -50,14 +50,15 @@ def linear(input_,
   with tf.variable_scope(name):
     w = tf.get_variable('w', [shape[1], output_size], tf.float32,
         initializer=weights_initializer, trainable=trainable)
-    b = tf.get_variable('b', [output_size],
-        initializer=biases_initializer, trainable=trainable)
-    out = tf.nn.bias_add(tf.matmul(input_, w), b)
+#    b = tf.get_variable('b', [output_size],
+#        initializer=biases_initializer, trainable=trainable)
+#    out = tf.nn.bias_add(tf.matmul(input_, w), b)
+    out = tf.matmul(input_, w)
 
     if activation_fn != None:
       return activation_fn(out), w, b
     else:
-      return out, w, b
+      return out, w
 
 def batch_sample(probs, name='batch_sample'):
   with tf.variable_scope(name):

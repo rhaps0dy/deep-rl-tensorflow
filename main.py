@@ -101,17 +101,24 @@ def main(_):
 
   model_dir = get_model_dir(conf,
       ['use_gpu', 'max_random_start', 'n_worker', 'is_train', 'memory_size',
-       't_save', 't_train', 'display', 'log_level', 'random_seed', 'tag', 'scale'])
+       't_save', 't_train', 'display', 'log_level', 'tag', 'scale',
+       't_train_max'])
 
   device = '/gpu:0' if conf.use_gpu else '/cpu:0'
   # start
   with tf.Session() as sess, tf.device(device):
+    env_args = [conf.env_name, conf.n_action_repeat, conf.max_random_start,
+                conf.observation_dims, conf.data_format, conf.display]
     if any(name in conf.env_name for name in ['Corridor', 'FrozenLake']) :
-      env = ToyEnvironment(conf.env_name, conf.n_action_repeat, conf.max_random_start,
-                        conf.observation_dims, conf.data_format, conf.display)
+      Env = ToyEnvironment
     else:
-      env = AtariEnvironment(conf.env_name, conf.n_action_repeat, conf.max_random_start,
-                        conf.observation_dims, conf.data_format, conf.display)
+      Env = AtariEnvironment
+    if conf.agent_type == 'DQN':
+      env = Env(*env_args)
+      n_actions = env.env.action_space.n,
+    elif conf.agent_type == 'A3C':
+      env = [Env(*env_args) for _ in range(conf.async_threads)]
+      n_actions = env[0].env.action_space.n
 
     if conf.network_header_type in ['nature', 'nips']:
       NetworkHead = CNN
@@ -119,15 +126,17 @@ def main(_):
               'data_format': conf.data_format,
               'history_length': conf.history_length,
               'observation_dims': conf.observation_dims,
-              'output_size': env.env.action_space.n,
+              'output_size': n_actions,
               'network_output_type': conf.network_output_type}
     elif conf.network_header_type == 'mlp':
       NetworkHead = MLPSmall
       args = {'sess': sess,
               'history_length': conf.history_length,
               'observation_dims': conf.observation_dims,
-              'output_size': env.env.action_space.n,
-              'hidden_activation_fn': tf.sigmoid,
+              'output_size': n_actions,
+              'hidden_sizes': [],
+              'weights_initializer': lambda shape, dtype: [[0.25]*shape[1]]*shape[0],
+              'hidden_activation_fn': tf.nn.relu,
               'network_output_type': conf.network_output_type}
     else:
       raise ValueError('Unkown network_header_type: %s' % (conf.network_header_type))
