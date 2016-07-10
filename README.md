@@ -56,10 +56,10 @@ Train with MLP model described in [[4]](#deep-reinforcement-learning-in-tensorfl
     $ python main.py --network_header_type=mlp --network_output_type=normal --double_q=True --observation_dims='[16]' --env_name=CorridorSmall-v5 --t_learn_start=0.1 --learning_rate_decay_step=0.1 --history_length=1 --n_action_repeat=1 --t_ep_end=50 --display=True
     $ python main.py --network_header_type=mlp --network_output_type=dueling --observation_dims='[16]' --env_name=CorridorSmall-v5 --t_learn_start=0.1 --learning_rate_decay_step=0.1 --history_length=1 --n_action_repeat=1 --t_ep_end=50 --display=True
     $ python main.py --network_header_type=mlp --network_output_type=dueling --double_q=True --observation_dims='[16]' --env_name=CorridorSmall-v5 --t_learn_start=0.1 --learning_rate_decay_step=0.1 --history_length=1 --n_action_repeat=1 --t_ep_end=50 --display=True
+	
+Train with Asynchronous Deep Q-Networks in the frozen lake environment:
 
-Train with Asynchronous Advantage Actor-Critic (A3C) and MLP:
-
-	$ python main.py --env_name=FrozenLake-v0 --a3c_threads=8 --agent_type=A3C --history_length=1 --t_learn_start=0.1 --learning_rate_decay_step=0.1 ---learning_rate=2.5e-05 --learning_rate_minimum=2.5e-05 --n_action_repeat=1 --network_header_type=mlp --network_output_type=actor-critic --observation_dims='[16]' --t_ep_end=10 --t_train_max=50 --trace_steps=5
+    $ python main.py --env_name=FrozenLake-v0 --async_threads=8 --agent_type=Async --history_length=1 --t_learn_start=0 --learning_rate_decay_step=10 --learning_rate=0.005 --learning_rate_minimum=0.005 --n_action_repeat=1 --network_header_type=mlp --network_output_type=normal --observation_dims='[16]' --t_ep_end=10  --trace_steps=5  --use_gpu=False --entropy_regularization_minimum=0.0 --entropy_regularization=0.0 --max_grad_norm=0.0 --learning_rate_decay=0.96 --momentum=0.9 --random_seed=1434 --ep_start=0.5 --ep_end=0.0 --t_ep_end=50 --t_train_max=60
 
 
 ## Results

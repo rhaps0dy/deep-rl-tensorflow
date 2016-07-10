@@ -13,10 +13,10 @@ flags = tf.app.flags
 
 # Deep q Network
 flags.DEFINE_boolean('use_gpu', True, 'Whether to use gpu or not. gpu use NHWC and gpu use NCHW for data_format')
-flags.DEFINE_string('agent_type', 'DQN', 'The type of agent [DQN, A3C]')
+flags.DEFINE_string('agent_type', 'Replay', 'The type of agent [Replay, Async]')
 flags.DEFINE_boolean('double_q', False, 'Whether to use double Q-learning')
 flags.DEFINE_string('network_header_type', 'nips', 'The type of network header [mlp, nature, nips]')
-flags.DEFINE_string('network_output_type', 'normal', 'The type of network output [normal, dueling]')
+flags.DEFINE_string('network_output_type', 'normal', 'The type of network output [normal, dueling, actor_critic]')
 
 # Environment
 flags.DEFINE_string('env_name', 'Breakout-v0', 'The name of gym environment to use')
@@ -38,7 +38,7 @@ flags.DEFINE_float('ep_end', 0.1, 'The value of epsilnon at the end in e-greedy'
 flags.DEFINE_integer('batch_size', 32, 'The size of batch for minibatch training')
 flags.DEFINE_float('max_grad_norm', 40, 'The maximum norm of gradient while updating')
 flags.DEFINE_float('discount_r', 0.99, 'The discount factor for reward')
-flags.DEFINE_integer('async_threads', 1, 'The number of simultaneous A3C agents')
+flags.DEFINE_integer('async_threads', 1, 'The number of simultaneous asynchronous agents')
 
 # Timer
 flags.DEFINE_integer('t_train_freq', 4, '')
@@ -113,12 +113,14 @@ def main(_):
       Env = ToyEnvironment
     else:
       Env = AtariEnvironment
-    if conf.agent_type == 'DQN':
+    if conf.agent_type == 'Replay':
       env = Env(*env_args)
       n_actions = env.env.action_space.n,
-    elif conf.agent_type == 'A3C':
+    elif conf.agent_type == 'Async':
       env = [Env(*env_args) for _ in range(conf.async_threads)]
       n_actions = env[0].env.action_space.n
+    else:
+      raise ValueError("Unknown agent_type: %s" % conf.agent_type)
 
     if conf.network_header_type in ['nature', 'nips']:
       NetworkHead = CNN
@@ -134,8 +136,6 @@ def main(_):
               'history_length': conf.history_length,
               'observation_dims': conf.observation_dims,
               'output_size': n_actions,
-              'hidden_sizes': [],
-              'weights_initializer': lambda shape, dtype: [[0.25]*shape[1]]*shape[0],
               'hidden_activation_fn': tf.nn.relu,
               'network_output_type': conf.network_output_type}
     else:
@@ -144,14 +144,14 @@ def main(_):
     stat = Statistic(sess, conf.t_test, conf.t_learn_start, conf.trace_steps,
                      model_dir)
 
-    if conf.agent_type == 'DQN':
+    if conf.agent_type == 'Replay':
       from agents.deep_q import DeepQ
       pred_network = NetworkHead(name='pred_network', trainable=True, **args)
       stat.create_writer(pred_network.var.values())
       target_network = NetworkHead(name='target_network', trainable=False, **args)
       agent = DeepQ(sess, pred_network, env, stat, conf,
                     target_network=target_network)
-    elif conf.agent_type == 'A3C':
+    elif conf.agent_type == 'Async':
       from agents.async import Async
       global_network = NetworkHead(name='global_network', trainable=False, **args)
       stat.create_writer(global_network.var.values())

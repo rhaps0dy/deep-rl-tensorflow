@@ -65,10 +65,7 @@ class Agent(object):
       self.history.add(observation)
 
     for self.t in tqdm(range(start_t, t_max), ncols=70, initial=start_t):
-      ep = (self.ep_end +
-          max(0., (self.ep_start - self.ep_end)
-            * (self.t_ep_end - max(0., self.t - self.t_learn_start)) / self.t_ep_end))
-
+      ep = self.calc_epsilon(self.t)
       # 1. predict
       action = self.predict(self.history.get(), ep)
       # 2. act
@@ -134,8 +131,8 @@ class Agent(object):
       #gym.upload(gym_dir, writeup='https://github.com/devsisters/DQN-tensorflow', api_key='')
 
   def predict(self, s_t, ep):
-    if random.random() < ep:
-      action = random.randrange(self.env.action_size)
+    if np.random.random() < ep:
+      action = np.random.randint(self.env.action_size)
     else:
       action = self.pred_network.calc_actions([s_t])[0]
     return action
@@ -173,3 +170,8 @@ class Agent(object):
   def update_target_q_network(self):
     assert self.target_network != None
     self.target_network.run_copy()
+
+  def calc_epsilon(self, t):
+    return (self.ep_end +
+      max(0., (self.ep_start - self.ep_end)
+        * (self.t_ep_end - max(0., t - self.t_learn_start)) / self.t_ep_end))

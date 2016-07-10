@@ -14,7 +14,7 @@ class Network(object):
       weights_initializer, biases_initializer, hidden_activation_fn, 
       output_activation_fn, trainable):
     if network_output_type == 'normal':
-      self.outputs, self.var['w_out'] = \
+      self.outputs, self.var['w_out'], self.var['b_out'] = \
           linear(layer, output_size, weights_initializer,
                  biases_initializer, output_activation_fn, trainable, name='out')
     elif network_output_type == 'dueling':
@@ -60,27 +60,28 @@ class Network(object):
       self.outputs_with_idx = tf.gather_nd(self.outputs, self.outputs_idx)
       self.actions = tf.argmax(self.outputs, dimension=1)
     elif network_output_type == 'actor-critic':
-      self.value, self.var['val_w'], self.var['val_b'] = \
+      self.values, self.var['val_w'], self.var['val_b'] = \
           linear(layer, 1, weights_initializer, biases_initializer,
                  None, trainable, name='val_out')
       self.actions, self.var['act_w'], self.var['act_b'] = \
-          linear(layer, output_size, lambda a, dtype: [[0, 3, 0, 0],
-       [0, 0, 0, 3],
-       [0, 3, 0, 0],
-       [0, 0, 0, 3],
-       [3, 0, 0, 0],
-       [3, 3, 3, 3],
-       [0, 3, 0, 0],
-       [3, 3, 3, 3],
-       [0, 0, 0, 3],
-       [0, 3, 0, 0],
-       [3, 0, 0, 0],
-       [3, 3, 3, 3],
-       [3, 3, 3, 3],
-       [0, 0, 3, 0],
-       [0, 3, 0, 0],
-       [3, 3, 3, 3]], biases_initializer,
-                 tf.nn.softmax, trainable, name='act_out')
+          linear(layer, output_size, weights_initializer,
+#                 lambda a, dtype: [[0, 3, 0, 0],
+#       [0, 0, 0, 3],
+#       [0, 3, 0, 0],
+#       [0, 0, 0, 3],
+#       [3, 0, 0, 0],
+#       [3, 3, 3, 3],
+#       [0, 3, 0, 0],
+#       [3, 3, 3, 3],
+#       [0, 0, 0, 3],
+#       [0, 3, 0, 0],
+#       [3, 0, 0, 0],
+#       [3, 3, 3, 3],
+#       [3, 3, 3, 3],
+#       [0, 0, 3, 0],
+#       [0, 3, 0, 0],
+#       [3, 3, 3, 3]],
+            biases_initializer, tf.nn.softmax, trainable, name='act_out')
 
   def run_copy(self):
     if self.copy_op is None:
