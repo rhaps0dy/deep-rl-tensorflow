@@ -10,7 +10,8 @@ from .forward_view_a3c import ForwardViewA3CAgent
 logger = getLogger(__name__)
 
 class Async:
-  def __init__(self, sess, global_network, envs, stat, conf, target_network, pred_networks):
+  def __init__(self, sess, global_network, target_network, envs, stat, conf,
+               pred_networks, value_networks=None):
     learning_rate_op = tf.maximum(conf.learning_rate_minimum,
         tf.train.exponential_decay(
             conf.learning_rate,
@@ -45,10 +46,19 @@ class Async:
           val_optimizer, self.global_t, self.global_t_semaphore,
           learning_rate_op))
       elif conf.network_output_type in ['actor_critic']:
-        self.agents.append(ForwardViewA3CAgent(
-          sess, global_network, env, stat, conf, nn, thread_id, val_optimizer,
-          act_optimizer, self.global_t, self.global_t_semaphore,
-          learning_rate_op, entropy_regularization_op))
+        if value_networks is not None:
+          self.agents.append(ForwardViewA3CAgent(
+            sess, global_network, target_network, env, stat, conf, nn,
+            thread_id, val_optimizer, act_optimizer, self.global_t,
+            self.global_t_semaphore, learning_rate_op,
+            entropy_regularization_op,
+            value_network=value_networks[thread_id]))
+        else:
+          self.agents.append(ForwardViewA3CAgent(
+            sess, global_network, global_network, env, stat, conf, nn,
+            thread_id, val_optimizer, act_optimizer, self.global_t,
+            self.global_t_semaphore, learning_rate_op,
+            entropy_regularization_op))
       else:
         raise ValueError("Unknown network_output_type: %s" % conf.network_output_type)
       thread_id += 1

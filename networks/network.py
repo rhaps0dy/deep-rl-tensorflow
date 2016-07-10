@@ -65,22 +65,6 @@ class Network(object):
                  None, trainable, name='val_out')
       self.actions, self.var['act_w'], self.var['act_b'] = \
           linear(layer, output_size, weights_initializer,
-#                 lambda a, dtype: [[0, 3, 0, 0],
-#       [0, 0, 0, 3],
-#       [0, 3, 0, 0],
-#       [0, 0, 0, 3],
-#       [3, 0, 0, 0],
-#       [3, 3, 3, 3],
-#       [0, 3, 0, 0],
-#       [3, 3, 3, 3],
-#       [0, 0, 0, 3],
-#       [0, 3, 0, 0],
-#       [3, 0, 0, 0],
-#       [3, 3, 3, 3],
-#       [3, 3, 3, 3],
-#       [0, 0, 3, 0],
-#       [0, 3, 0, 0],
-#       [3, 3, 3, 3]],
             biases_initializer, tf.nn.softmax, trainable, name='act_out')
     else:
       raise ValueError("Unknown network_output_type: %s" % network_output_type)

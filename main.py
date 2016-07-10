@@ -15,6 +15,7 @@ flags = tf.app.flags
 flags.DEFINE_boolean('use_gpu', True, 'Whether to use gpu or not. gpu use NHWC and gpu use NCHW for data_format')
 flags.DEFINE_string('agent_type', 'Replay', 'The type of agent [Replay, Async]')
 flags.DEFINE_boolean('double_q', False, 'Whether to use double Q-learning')
+flags.DEFINE_boolean('disjoint_a3c', False, 'Whether to use a completely separate network for actions and values in A3C')
 flags.DEFINE_string('network_header_type', 'nips', 'The type of network header [mlp, nature, nips]')
 flags.DEFINE_string('network_output_type', 'normal', 'The type of network output [normal, dueling, actor_critic]')
 
@@ -159,8 +160,14 @@ def main(_):
       pred_networks = list(
         NetworkHead(name=('pred_network_%d'%i), trainable=False, **args)
         for i in range(conf.async_threads))
-      agent = Async(sess, global_network, env, stat, conf,
-                    target_network=target_network, pred_networks=pred_networks)
+      if conf.disjoint_a3c:
+        value_networks = list(
+          NetworkHead(name=('value_network_%d'%i), trainable=False, **args)
+          for i in range(conf.async_threads))
+      else:
+        value_networks = None
+      agent = Async(sess, global_network, target_network, env, stat, conf,
+                    pred_networks=pred_networks, value_networks=value_networks)
     else:
       raise ValueError('Unkown agent_type: %s' % (conf.agent_type))
 
