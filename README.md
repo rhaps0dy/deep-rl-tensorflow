@@ -61,6 +61,9 @@ Train with Asynchronous Deep Q-Networks in the frozen lake environment:
 
     $ python main.py --env_name=FrozenLake-v0 --async_threads=8 --agent_type=Async --history_length=1 --t_learn_start=0 --learning_rate_decay_step=10 --learning_rate=0.005 --learning_rate_minimum=0.005 --n_action_repeat=1 --network_header_type=mlp --network_output_type=normal --observation_dims='[16]' --t_ep_end=10  --trace_steps=5  --use_gpu=False --entropy_regularization_minimum=0.0 --entropy_regularization=0.0 --max_grad_norm=0.0 --learning_rate_decay=0.96 --momentum=0.9 --random_seed=1434 --ep_start=0.5 --ep_end=0.0 --t_ep_end=50 --t_train_max=60
 
+Train with Asynchronous Advantage Actor-Critic, (note: only disjoint networks currently working)
+
+    $ python main.py --env_name=FrozenLake-v0 --async_threads=8 --agent_type=Async --history_length=1 --t_learn_start=2 --learning_rate_decay_step=10 --learning_rate=0.0025 --learning_rate_minimum=0.0025 --n_action_repeat=1 --network_header_type=mlp --network_output_type=actor_critic --observation_dims='[16]' --t_ep_end=10  --trace_steps=5  --use_gpu=False --entropy_regularization_minimum=0.0 --entropy_regularization=0.01 --entropy_regularization_decay_step=0.1 --max_grad_norm=0.0 --learning_rate_decay=0.96 --momentum=0.9 --random_seed=1824 --ep_start=0.5 --ep_end=0.01234 --t_ep_end=50 --t_train_max=200 --disjoint_a3c=False
 
 ## Results
 
