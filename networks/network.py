@@ -59,7 +59,7 @@ class Network(object):
       self.outputs_idx = tf.placeholder('int32', [None, None], 'outputs_idx')
       self.outputs_with_idx = tf.gather_nd(self.outputs, self.outputs_idx)
       self.actions = tf.argmax(self.outputs, dimension=1)
-    elif network_output_type == 'actor-critic':
+    elif network_output_type == 'actor_critic':
       self.values, self.var['val_w'], self.var['val_b'] = \
           linear(layer, 1, weights_initializer, biases_initializer,
                  None, trainable, name='val_out')
@@ -82,6 +82,8 @@ class Network(object):
 #       [0, 3, 0, 0],
 #       [3, 3, 3, 3]],
             biases_initializer, tf.nn.softmax, trainable, name='act_out')
+    else:
+      raise ValueError("Unknown network_output_type: %s" % network_output_type)
 
   def run_copy(self):
     if self.copy_op is None:

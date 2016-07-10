@@ -1,19 +1,19 @@
 import async_agent
+from ..history import ForwardViewHistory
+import numpy as np
+import tensorflow as tf
 
 class ForwardViewA3CAgent(async_agent.AsyncAgent):
-  def __init__(self, sess, global_network, target_network, env, stat, conf,
+  def __init__(self, sess, global_network, env, stat, conf,
                local_network, tid, val_optimizer, act_optimizer, global_t,
                global_t_semaphore, learning_rate_op, entropy_regularization_op):
-    super(ForwardViewA3CAgent, self).__init__(sess, global_network, env, stat, conf, target_network=local_network)
-    self.tid = tid
-    self.global_t = global_t
-    self.global_t_semaphore = global_t_semaphore
+    super(ForwardViewA3CAgent, self).__init__(
+      sess, global_network, local_network, env, stat, conf, tid, global_t,
+      global_t_semaphore, learning_rate_op)
     del self.pred_network
     del self.target_network
     self.global_network = global_network
     self.network = local_network
-    self.trace_steps = conf.trace_steps
-    self.learning_rate_op = learning_rate_op
     self.entropy_regularization_op = entropy_regularization_op
 
     self.history = ForwardViewHistory(conf.data_format, conf.history_length,
@@ -22,8 +22,10 @@ class ForwardViewA3CAgent(async_agent.AsyncAgent):
     with tf.variable_scope('thread_%d' % (self.tid)):
       self.returns_ph = tf.placeholder(tf.float32, [None], name='returns')
       self.actions_ph = tf.placeholder(tf.int64, [None], name='actions')
-      actions_one_hot = tf.one_hot(self.actions_ph, self.env.action_size, 1.0, 0.0, axis=-1, dtype=tf.float32, name='actions_one_hot')
-      advantage = self.returns_ph - self.network.value
+      actions_one_hot = tf.one_hot(self.actions_ph, self.env.action_size, 1.0,
+                                   0.0, axis=-1, dtype=tf.float32,
+                                   name='actions_one_hot')
+      advantage = self.returns_ph - self.network.values
       if conf.entropy_regularization_minimum != 0.0 or conf.entropy_regularization != 0.0:
         action_logs = tf.log(self.network.actions)
         taken_action_p_log = tf.reduce_sum(
@@ -39,42 +41,26 @@ class ForwardViewA3CAgent(async_agent.AsyncAgent):
       loss_values = tf.square(advantage)
       self.loss_values = tf.reduce_mean(loss_values)
 
-      def grads(loss, exclude):
-        vs = list(set(self.network.var.keys()) - exclude)
-        gs = tf.gradients(loss, [self.network.var[v] for v in vs])
-        for i in xrange(len(gs)):
-          if self.max_grad_norm > 0.:
-            gs[i] = tf.clip_by_norm(gs[i], self.max_grad_norm)
-#          gs[i] /= conf.async_threads
-        return zip(gs, map(self.network.var.get, vs))
-
-      grads_values = grads(self.loss_values, {'act_b', 'act_w'})
-      grads_actions = grads(self.loss_actions, {'val_b', 'val_w'})
+      grads_values = self.create_grads(self.loss_values,
+        {'act_b', 'act_w'}, self.network, self.global_network)
+      grads_actions = self.create_grads(self.loss_actions,
+        {'act_b', 'act_w'}, self.network, self.global_network)
 
       self.val_optim = val_optimizer.apply_gradients(grads_values)
       self.act_optim = act_optimizer.apply_gradients(grads_actions)
 
       self.returns = np.zeros([self.trace_steps], dtype=np.float32)
       self.actions = np.zeros([self.trace_steps], dtype=np.int64)
-      self.possible_actions = \
-        np.array(range(self.network.actions.get_shape().as_list()[1]), dtype=np.int64)
-
-
-  def train_prepare(self, max_t, cont):
-    self.max_t, self.cont = max_t, cont
+      self.possible_actions = np.array(
+        range(self.network.actions.get_shape().as_list()[1]), dtype=np.int64)
 
   def train(self):
-    # 0. Prepare training
-    observation, _, terminal = self.new_game()
-    self.history.reset()
-    self.history.fill(observation)
-
-    if self.tid == 0:
-      progress_bar = tqdm(total=self.max_t)
-      prev_update_t = update_t = 0
-
+    terminal = True
     while self.cont[0] and self.global_t[0] <= self.max_t:
       self.network.run_copy()
+      if terminal:
+        observation, _, _ = self.new_game()
+        self.history.fill(observation)
       self.history.advance()
       t = 0
       reward = 0.
@@ -90,10 +76,8 @@ class ForwardViewA3CAgent(async_agent.AsyncAgent):
         t += 1
       if terminal:
         value = 0.
-        observation, _, _ = self.new_game()
       else:
-        #value = 0.
-        value = self.network.calc('value', [self.history.get(t)])
+        value = self.network.calc('values', [self.history.get(t)])
 
       real_time_steps = t
       t -= 1
@@ -106,26 +90,14 @@ class ForwardViewA3CAgent(async_agent.AsyncAgent):
           self.returns_ph: self.returns[:real_time_steps],
           self.actions_ph: self.actions[:real_time_steps]}
       if self.global_t[0] < self.t_learn_start:
-        _, loss_value, loss_action, q, act, vw, aw = self.sess.run(
+        _, loss_value, loss_action, q, entropy_regularization = self.sess.run(
           [self.val_optim, self.loss_values, self.loss_actions,
-          self.network.value, self.network.actions, self.network.var['val_w'],
-          self.network.var['act_w'],], dc)
+           self.network.values, self.entropy_regularization_op], dc)
       else:
-        _, _, loss_value, loss_action, q, act, vw, aw = self.sess.run(
+        _, _, loss_value, loss_action, q, entropy_regularization = self.sess.run(
           [self.val_optim, self.act_optim, self.loss_values, self.loss_actions,
-          self.network.value, self.network.actions, self.network.var['val_w'],
-          self.network.var['act_w'],], dc)
+           self.network.values, self.entropy_regularization_op], dc)
 
-      self.global_t_semaphore.acquire()
-      if self.stat:
-        self.stat.on_step(self.global_t[0], self.actions[:real_time_steps],
-                          reward, terminal, 0, q, loss_value, True,
-                          self.learning_rate_op, real_time_steps, loss_action)
-      self.global_t[0] += real_time_steps
-      gt = self.global_t[0]
-      self.global_t_semaphore.release()
-
-      if self.tid == 0:
-        prev_update_t = update_t
-        update_t = gt
-        progress_bar.update(update_t - prev_update_t)
+      self.advance_t(real_time_steps, self.actions[:real_time_steps], reward,
+                     terminal, entropy_regularization, q, loss_value, True,
+                     self.learning_rate_op, real_time_steps, loss_action)

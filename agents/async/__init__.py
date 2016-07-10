@@ -24,7 +24,7 @@ class Async:
             stat.t_op,
             conf.entropy_regularization_decay_step,
             conf.entropy_regularization_decay,
-            staircase=True))
+            staircase=False))
     val_optimizer = tf.train.RMSPropOptimizer(
       learning_rate_op, decay=conf.decay, momentum=conf.momentum,
       epsilon=conf.rmsprop_epsilon, use_locking=True)
@@ -41,13 +41,14 @@ class Async:
     for nn, env in zip(pred_networks, envs):
       if conf.network_output_type in ['normal', 'dueling']:
         self.agents.append(ForwardViewDQNAgent(
-          sess, global_network, target_network, env, stat, conf,
-          local_network=nn, tid=thread_id, optimizer=val_optimizer,
-          global_t=self.global_t, global_t_semaphore=self.global_t_semaphore,
-          learning_rate_op=learning_rate_op))
+          sess, global_network, target_network, env, stat, conf, nn, thread_id,
+          val_optimizer, self.global_t, self.global_t_semaphore,
+          learning_rate_op))
       elif conf.network_output_type in ['actor_critic']:
         self.agents.append(ForwardViewA3CAgent(
-          ))
+          sess, global_network, env, stat, conf, nn, thread_id, val_optimizer,
+          act_optimizer, self.global_t, self.global_t_semaphore,
+          learning_rate_op, entropy_regularization_op))
       else:
         raise ValueError("Unknown network_output_type: %s" % conf.network_output_type)
       thread_id += 1
