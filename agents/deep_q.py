@@ -46,7 +46,7 @@ class DeepQ(Agent):
       
       grads_and_vars = optimizer.compute_gradients(self.loss)
       for idx, (grad, var) in enumerate(grads_and_vars):
-        if grad is not None:
+        if grad is not None and self.max_grad_norm > 0.0:
           grads_and_vars[idx] = (tf.clip_by_norm(grad, self.max_grad_norm), var)
       self.optim = optimizer.apply_gradients(grads_and_vars)
 

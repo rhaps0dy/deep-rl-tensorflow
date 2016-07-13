@@ -27,7 +27,7 @@ class Environment(object):
 
     self.display = display
     self.data_format = data_format
-    self.observation_dims = observation_dims
+    self.observation_dims = tuple(observation_dims)
 
     if hasattr(self.env, 'get_action_meanings'):
       logger.info("Using %d actions : %s" % (self.action_size, ", ".join(self.env.get_action_meanings())))

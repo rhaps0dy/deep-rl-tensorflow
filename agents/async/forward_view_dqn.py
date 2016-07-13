@@ -34,7 +34,9 @@ class ForwardViewDQNAgent(async_agent.AsyncAgent):
       self.optim = optimizer.apply_gradients(self.grads_and_vars)
 
       if self.double_q:
-        self.value = tf.gather(self.target.outputs, self.network.actions)
+        self.value = tf.gather(
+          tf.squeeze(self.target_network.outputs, squeeze_dims=[0]),
+          self.network.actions)
       else:
         self.value = tf.reduce_max(self.network.outputs, reduction_indices=1)
       self.q_val_mean = tf.reduce_mean(self.network.outputs, reduction_indices=1)

@@ -28,10 +28,10 @@ class Async:
             staircase=False))
     val_optimizer = tf.train.RMSPropOptimizer(
       learning_rate_op, decay=conf.decay, momentum=conf.momentum,
-      epsilon=conf.rmsprop_epsilon, use_locking=True)
+      epsilon=conf.rmsprop_epsilon, use_locking=False)
     act_optimizer = tf.train.RMSPropOptimizer(
       learning_rate_op, decay=conf.decay, momentum=conf.momentum,
-      epsilon=conf.rmsprop_epsilon, use_locking=True)
+      epsilon=conf.rmsprop_epsilon, use_locking=False)
     self.stat = stat
     self.global_t = [0, 0]
     self.global_t_semaphore = threading.Semaphore(1)
@@ -63,8 +63,10 @@ class Async:
         raise ValueError("Unknown network_output_type: %s" % conf.network_output_type)
       thread_id += 1
 
-  def play(self, ep_end):
-    self.agents[0].play(ep_end)
+  def play(self, test_ep, n_step=10000, n_episode=100):
+    tf.initialize_all_variables().run()
+    self.stat.load_model()
+    self.agents[0].play(test_ep, n_step, n_episode)
 
   def train(self, t_train_max):
     # Lists are used as shared thread memory

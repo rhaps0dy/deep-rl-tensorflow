@@ -27,8 +27,11 @@ class ForwardViewHistory(History):
                                              screen_dims)
     self.history_length = history_length
     self.trace_steps = trace_steps
-    self._get = super(ForwardViewHistory, self).get
-    self.trace_slices = [self._get()[i:i+history_length,...] for \
+    if self.data_format == 'NHWC' and len(self.history.shape) == 3:
+      f = lambda a: np.transpose(a, (1,2,0))
+    else:
+      f = lambda a: a
+    self.trace_slices = [f(self.history[i:i+history_length,...]) for \
                           i in xrange(self.trace_steps+1)]
     self.reset()
 
@@ -44,10 +47,10 @@ class ForwardViewHistory(History):
     self.counter += 1
 
   def advance(self):
-    self.trace_slices[0][...] = self.trace_slices[-1]
+    self.trace_slices[0][...] = self.trace_slices[self.counter-self.history_length]
     self.counter = self.history_length
 
-  def get(self, t):
+  def get(self, t=0):
     return self.trace_slices[t]
 
   def get_all(self):

@@ -89,7 +89,7 @@ class Agent(object):
     self.target_network.run_copy()
 
     if not self.env.display:
-      gym_dir = '/tmp/%s-%s' % (self.env_name, get_time())
+      gym_dir = '/tmp/%s-%s' % (self.env.env.spec.id, get_time())
       self.env.env.monitor.start(gym_dir)
 
     best_reward, best_idx, best_count = 0, 0, 0
