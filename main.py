@@ -37,7 +37,7 @@ flags.DEFINE_integer('min_delta', None, 'The minimum value of delta')
 flags.DEFINE_float('ep_start', 1., 'The value of epsilon at start in e-greedy')
 flags.DEFINE_float('ep_end', 0.1, 'The value of epsilnon at the end in e-greedy')
 flags.DEFINE_integer('batch_size', 32, 'The size of batch for minibatch training')
-flags.DEFINE_float('max_grad_norm', 40, 'The maximum norm of gradient while updating')
+flags.DEFINE_float('max_grad_norm', None, 'The maximum norm of gradient while updating')
 flags.DEFINE_float('discount_r', 0.99, 'The discount factor for reward')
 flags.DEFINE_integer('async_threads', 1, 'The number of simultaneous asynchronous agents')
 
@@ -56,8 +56,8 @@ flags.DEFINE_float('learning_rate_decay_step', 5, 'The learning rate of training
 flags.DEFINE_float('entropy_regularization_decay_step', 5, 'The learning rate of training (*= scale)')
 
 # Optimizer
-flags.DEFINE_float('learning_rate', 0.025, 'The learning rate of training')
-flags.DEFINE_float('learning_rate_minimum', 0.0025, 'The learning rate of training')
+flags.DEFINE_float('learning_rate', 0.00025, 'The learning rate of training')
+flags.DEFINE_float('learning_rate_minimum', 0.00025, 'The learning rate of training')
 flags.DEFINE_float('learning_rate_decay', 0.96, 'The learning rate of training')
 flags.DEFINE_float('decay', 0.99, 'Decay of RMSProp optimizer')
 flags.DEFINE_float('momentum', 0.0, 'Momentum of RMSProp optimizer')
@@ -73,6 +73,15 @@ flags.DEFINE_boolean('display', False, 'Whether to do display the game screen or
 flags.DEFINE_string('log_level', 'INFO', 'Log level [DEBUG, INFO, WARNING, ERROR, CRITICAL]')
 flags.DEFINE_integer('random_seed', 123, 'Value of random seed')
 flags.DEFINE_string('tag', '', 'The name of tag for a model, only for debugging')
+flags.DEFINE_string('gpu_fraction', '1/1', 'idx / # of gpu fraction e.g. 1/3, 2/3, 3/3')
+
+def calc_gpu_fraction(fraction_string):
+  idx, num = fraction_string.split('/')
+  idx, num = float(idx), float(num)
+
+  fraction = 1 / (num - idx + 1)
+  print " [*] GPU : %.4f" % fraction
+  return fraction
 
 conf = flags.FLAGS
 
@@ -102,12 +111,16 @@ def main(_):
 
   model_dir = get_model_dir(conf,
       ['use_gpu', 'max_random_start', 'n_worker', 'is_train', 'memory_size',
-       't_save', 't_train', 'display', 'log_level', 'tag', 'scale',
-       't_train_max'])
+       'gpu_fraction', 't_save', 't_train', 'display', 'log_level',
+       'random_seed', 'tag', 'scale', 't_train_max'])
 
   device = '/gpu:0' if conf.use_gpu else '/cpu:0'
   # start
-  with tf.Session() as sess, tf.device(device):
+  gpu_options = tf.GPUOptions(
+      per_process_gpu_memory_fraction=calc_gpu_fraction(conf.gpu_fraction))
+
+  with tf.Session(config=tf.ConfigProto(gpu_options=gpu_options)) as sess, \
+       tf.device(device):
     env_args = [conf.env_name, conf.n_action_repeat, conf.max_random_start,
                 conf.observation_dims, conf.data_format, conf.display]
     if any(name in conf.env_name for name in ['Corridor', 'FrozenLake']) :

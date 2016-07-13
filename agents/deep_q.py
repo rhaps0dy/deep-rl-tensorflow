@@ -3,7 +3,6 @@ import time
 import numpy as np
 import tensorflow as tf
 from logging import getLogger
-
 from .agent import Agent
 from .experience import Experience
 from .history import History
@@ -43,12 +42,15 @@ class DeepQ(Agent):
 
       optimizer = tf.train.RMSPropOptimizer(
         self.learning_rate_op, momentum=0.95, epsilon=0.01)
-      
-      grads_and_vars = optimizer.compute_gradients(self.loss)
-      for idx, (grad, var) in enumerate(grads_and_vars):
-        if grad is not None and self.max_grad_norm > 0.0:
-          grads_and_vars[idx] = (tf.clip_by_norm(grad, self.max_grad_norm), var)
-      self.optim = optimizer.apply_gradients(grads_and_vars)
+
+      if self.max_grad_norm != None:
+        grads_and_vars = optimizer.compute_gradients(self.loss)
+        for idx, (grad, var) in enumerate(grads_and_vars):
+          if grad is not None:
+            grads_and_vars[idx] = (tf.clip_by_norm(grad, self.max_grad_norm), var)
+        self.optim = optimizer.apply_gradients(grads_and_vars)
+      else:
+        self.optim = optimizer.minimize(self.loss)
 
   def observe(self, observation, reward, action, terminal):
     reward = max(self.min_r, min(self.max_r, reward))

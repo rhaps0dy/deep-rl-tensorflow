@@ -11,8 +11,6 @@ TensorFlow implementation of Deep Reinforcement Learning papers. This implementa
 [7] [Asynchronous Methods for Deep Reinforcement Learning](http://arxiv.org/abs/1602.01783) (in progress)  
 [8] [Continuous Deep q-Learning with Model-based Acceleration](http://arxiv.org/abs/1603.00748) (in progress)  
 
-**Currently training of CNN model with Atari environment doesn't work yet**
-
 
 ## Requirements
 
@@ -52,11 +50,11 @@ Train with Deuling network with Double Q-learning described in [[4]](#deep-reinf
 
 Train with MLP model described in [[4]](#deep-reinforcement-learning-in-tensorflow) with corridor environment (useful for debugging):
 
-    $ python main.py --network_header_type=mlp --network_output_type=normal --observation_dims='[16]' --env_name=CorridorSmall-v5 --t_learn_start=0.1 --learning_rate_decay_step=0.1 --history_length=1 --n_action_repeat=1 --t_ep_end=50 --display=True
-    $ python main.py --network_header_type=mlp --network_output_type=normal --double_q=True --observation_dims='[16]' --env_name=CorridorSmall-v5 --t_learn_start=0.1 --learning_rate_decay_step=0.1 --history_length=1 --n_action_repeat=1 --t_ep_end=50 --display=True
-    $ python main.py --network_header_type=mlp --network_output_type=dueling --observation_dims='[16]' --env_name=CorridorSmall-v5 --t_learn_start=0.1 --learning_rate_decay_step=0.1 --history_length=1 --n_action_repeat=1 --t_ep_end=50 --display=True
-    $ python main.py --network_header_type=mlp --network_output_type=dueling --double_q=True --observation_dims='[16]' --env_name=CorridorSmall-v5 --t_learn_start=0.1 --learning_rate_decay_step=0.1 --history_length=1 --n_action_repeat=1 --t_ep_end=50 --display=True
-	
+    $ python main.py --network_header_type=mlp --network_output_type=normal --observation_dims='[16]' --env_name=CorridorSmall-v5 --t_learn_start=0.1 --learning_rate_decay_step=0.1 --history_length=1 --n_action_repeat=1 --t_ep_end=10 --display=True --learning_rate=0.025 --learning_rate_minimum=0.0025
+    $ python main.py --network_header_type=mlp --network_output_type=normal --double_q=True --observation_dims='[16]' --env_name=CorridorSmall-v5 --t_learn_start=0.1 --learning_rate_decay_step=0.1 --history_length=1 --n_action_repeat=1 --t_ep_end=10 --display=True --learning_rate=0.025 --learning_rate_minimum=0.0025
+    $ python main.py --network_header_type=mlp --network_output_type=dueling --observation_dims='[16]' --env_name=CorridorSmall-v5 --t_learn_start=0.1 --learning_rate_decay_step=0.1 --history_length=1 --n_action_repeat=1 --t_ep_end=10 --display=True --learning_rate=0.025 --learning_rate_minimum=0.0025
+    $ python main.py --network_header_type=mlp --network_output_type=dueling --double_q=True --observation_dims='[16]' --env_name=CorridorSmall-v5 --t_learn_start=0.1 --learning_rate_decay_step=0.1 --history_length=1 --n_action_repeat=1 --t_ep_end=10 --display=True --learning_rate=0.025 --learning_rate_minimum=0.0025
+
 Train with Asynchronous Deep Q-Networks in the frozen lake environment:
 
     $ python main.py --env_name=FrozenLake-v0 --async_threads=8 --agent_type=Async --history_length=1 --t_learn_start=0 --learning_rate_decay_step=10 --learning_rate=0.005 --learning_rate_minimum=0.005 --n_action_repeat=1 --network_header_type=mlp --network_output_type=normal --observation_dims='[16]' --t_ep_end=10  --trace_steps=5  --use_gpu=False --entropy_regularization_minimum=0.0 --entropy_regularization=0.0 --max_grad_norm=0.0 --learning_rate_decay=0.96 --momentum=0.9 --ep_start=0.5 --ep_end=0.0 --t_ep_end=50 --t_train_max=60 --double_q=True
@@ -71,7 +69,11 @@ Result of `Corridor-v5` in [[4]](#deep-reinforcement-learning-in-tensorflow) for
 
 ![model](assets/corridor_result.png)
 
-(in progress)
+Result of `Breakout-v0' for DQN without frame-skip (white-blue), DQN with frame-skip (light purple), Dueling DDQN (dark blue).
+
+![model](assets/A1_A4_double_dueling.png)
+
+The hyperparameters and gradient clipping are not implemented as it is as [[4]](#deep-reinforcement-learning-in-tensorflow).
 
 
 ## References
