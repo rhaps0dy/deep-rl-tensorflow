@@ -67,9 +67,7 @@ class ForwardViewA3CAgent(async_agent.AsyncAgent):
   def train(self):
     terminal = True
     while self.cont[0] and self.global_t[0] <= self.max_t:
-      self.action_network.run_copy()
-      if self.separate_networks:
-        self.value_network.run_copy()
+      self.update_q_networks()
       if terminal:
         observation, _, _ = self.new_game()
         self.history.fill(observation)
@@ -78,8 +76,7 @@ class ForwardViewA3CAgent(async_agent.AsyncAgent):
       reward = 0.
       terminal = False
       while t < self.trace_steps and not terminal:
-        policy = self.action_network.calc('actions', [self.history.get(t)])
-        self.actions[t] = np.random.choice(self.possible_actions, p=policy.flatten())
+        self.actions[t] = self.predict(self.history.get(t), None)
         observation, r, terminal, _ = \
           self.env.step(self.actions[t], is_training=True)
         reward += r
@@ -114,3 +111,12 @@ class ForwardViewA3CAgent(async_agent.AsyncAgent):
       self.advance_t(real_time_steps, self.actions[:real_time_steps], reward,
                      terminal, entropy_regularization, q, loss_value, True,
                      self.learning_rate_op, real_time_steps, loss_action)
+
+  def predict(self, observation, _):
+    policy = self.action_network.calc('actions', [observation])
+    return np.random.choice(self.possible_actions, p=policy.flatten())
+
+  def update_q_networks(self):
+    self.action_network.run_copy()
+    if self.separate_networks:
+      self.value_network.run_copy()

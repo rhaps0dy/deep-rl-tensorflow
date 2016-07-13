@@ -56,7 +56,7 @@ class Agent(object):
     tf.initialize_all_variables().run()
 
     self.stat.load_model()
-    self.target_network.run_copy()
+    self.update_q_networks()
 
     start_t = self.stat.get_t()
     observation, reward, terminal = self.new_game()
@@ -86,7 +86,7 @@ class Agent(object):
     tf.initialize_all_variables().run()
 
     self.stat.load_model()
-    self.target_network.run_copy()
+    self.update_q_networks()
 
     if not self.env.display:
       gym_dir = '/tmp/%s-%s' % (self.env.env.spec.id, get_time())
@@ -132,10 +132,8 @@ class Agent(object):
 
   def predict(self, s_t, ep):
     if np.random.random() < ep:
-      action = np.random.randint(self.env.action_size)
-    else:
-      action = self.pred_network.calc_actions([s_t])[0]
-    return action
+      return np.random.randint(self.env.action_size)
+    return self.pred_network.calc_actions([s_t])[0]
 
   def q_learning_minibatch_test(self):
     s_t = np.array([[[ 0., 0., 0., 0.],
@@ -167,8 +165,7 @@ class Agent(object):
 
     logger.info("q: %s, a: %d, l: %.2f" % (q_t, a, loss))
 
-  def update_target_q_network(self):
-    assert self.target_network != None
+  def update_q_networks(self):
     self.target_network.run_copy()
 
   def calc_epsilon(self, t):

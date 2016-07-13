@@ -43,4 +43,7 @@ class AsyncAgent(agent.Agent):
       self.update_t = gt
       self.progress_bar.update(self.update_t - self.prev_update_t)
 
-
+  def observe(self, observation, reward, action, terminal):
+    self.history.add(observation)
+    self.history.advance()
+    return [], 0, False

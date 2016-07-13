@@ -54,7 +54,7 @@ class ForwardViewDQNAgent(async_agent.AsyncAgent):
         self.global_t[1] = (self.global_t[0] // self.t_target_q_update_freq + 1) * \
                             self.t_target_q_update_freq
       self.global_t_semaphore.release()
-      self.network.run_copy()
+      self.update_q_networks()
       if terminal:
         observation, _, _ = self.new_game()
         self.history.fill(observation)
@@ -63,10 +63,7 @@ class ForwardViewDQNAgent(async_agent.AsyncAgent):
       reward = 0.
       terminal = False
       while t < self.trace_steps and not terminal:
-        if np.random.random() < epsilon:
-          self.actions[t] = np.random.randint(self.env.action_size)
-        else:
-          self.actions[t] = self.network.calc('actions', [self.history.get(t)])
+        self.actions[t] = self.predict(self.history.get(t), epsilon)
         observation, r, terminal, _ = \
           self.env.step(self.actions[t], is_training=True)
         reward += r
@@ -97,3 +94,10 @@ class ForwardViewDQNAgent(async_agent.AsyncAgent):
                      terminal, epsilon, q, loss, True,
                      self.learning_rate_op, real_time_steps, 0)
 
+  def predict(self, s_t, ep):
+    if np.random.random() < ep:
+      return np.random.randint(self.env.action_size)
+    return self.network.calc_actions([s_t])[0]
+
+  def update_q_networks(self):
+    self.network.run_copy()

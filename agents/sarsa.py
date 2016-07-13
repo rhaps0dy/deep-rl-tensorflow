@@ -62,7 +62,7 @@ class SARSA(Agent):
         result = self.q_learning_minibatch()
 
       if self.t % self.t_target_q_update_freq == self.t_target_q_update_freq - 1:
-        self.update_target_q_network()
+        self.update_q_networks()
 
     return result
 

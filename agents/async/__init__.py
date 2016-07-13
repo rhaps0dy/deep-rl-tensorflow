@@ -64,8 +64,6 @@ class Async:
       thread_id += 1
 
   def play(self, test_ep, n_step=10000, n_episode=100):
-    tf.initialize_all_variables().run()
-    self.stat.load_model()
     self.agents[0].play(test_ep, n_step, n_episode)
 
   def train(self, t_train_max):
