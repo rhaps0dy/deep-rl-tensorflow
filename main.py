@@ -129,7 +129,7 @@ def main(_):
       Env = AtariEnvironment
     if conf.agent_type == 'Replay':
       env = Env(*env_args)
-      n_actions = env.env.action_space.n,
+      n_actions = env.env.action_space.n
     elif conf.agent_type == 'Async':
       env = [Env(*env_args) for _ in range(conf.async_threads)]
       n_actions = env[0].env.action_space.n
