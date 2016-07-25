@@ -1,5 +1,6 @@
 import gym
 import random
+import numpy as np
 import logging
 import tensorflow as tf
 
@@ -29,6 +30,7 @@ flags.DEFINE_integer('max_r', +1, 'The maximum value of clipped reward')
 flags.DEFINE_integer('min_r', -1, 'The minimum value of clipped reward')
 flags.DEFINE_string('observation_dims', '[80, 80]', 'The dimension of gym observation')
 flags.DEFINE_boolean('random_start', True, 'Whether to start with random state')
+flags.DEFINE_string("model_dir", "", "The name of the model's directory")
 
 # Training
 flags.DEFINE_boolean('is_train', True, 'Whether to do training or testing')
@@ -92,10 +94,13 @@ logger.setLevel(conf.log_level)
 # set random seed
 tf.set_random_seed(conf.random_seed)
 random.seed(conf.random_seed)
+np.random.seed(conf.random_seed)
 
 def main(_):
   # preprocess
   conf.observation_dims = eval(conf.observation_dims)
+  if conf.learning_rate < 0:
+      conf.learning_rate = conf.learning_rate_minimum = 10**(np.random.random()*2-4)
 
   for flag in ['memory_size', 't_target_q_update_freq', 't_test',
                't_ep_end', 't_train_max', 't_learn_start',
@@ -109,10 +114,13 @@ def main(_):
   else:
     conf.data_format = 'NHWC'
 
-  model_dir = get_model_dir(conf,
+  if conf.model_dir == "":
+    model_dir = get_model_dir(conf,
       ['use_gpu', 'max_random_start', 'n_worker', 'is_train', 'memory_size',
-       'gpu_fraction', 't_save', 't_train', 'display', 'log_level',
-       'random_seed', 'tag', 'scale', 't_train_max'])
+       't_save', 't_train', 'display', 'log_level', 'random_seed', 'tag',
+       'scale', 'model_dir', 't_train_max'])
+  else:
+    model_dir = 'checkpoints/' + conf.model_dir + '/'
 
   device = '/gpu:0' if conf.use_gpu else '/cpu:0'
   # start
@@ -149,6 +157,7 @@ def main(_):
       args = {'sess': sess,
               'history_length': conf.history_length,
               'observation_dims': conf.observation_dims,
+              'hidden_sizes': [],
               'output_size': n_actions,
               'hidden_activation_fn': tf.nn.relu,
               'network_output_type': conf.network_output_type}
@@ -190,4 +199,7 @@ def main(_):
       agent.play(conf.ep_end)
 
 if __name__ == '__main__':
-  tf.app.run()
+  try:
+    tf.app.run()
+  except tf.python.framework.errors.InvalidArgumentError:
+    print "Model that has been loaded does not match. Delete the 'checkpoints' directory."
