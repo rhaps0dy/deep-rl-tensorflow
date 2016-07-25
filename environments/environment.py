@@ -2,6 +2,7 @@ import gym
 import random
 import logging
 import numpy as np
+import time
 
 from .corridor import CorridorEnv
 
@@ -40,7 +41,10 @@ class Environment(object):
 
   def step(self, action, is_training=False):
     observation, reward, terminal, info = self.env.step(action)
-    if self.display: self.env.render()
+    if self.display:
+      self.env.render()
+      time.sleep(0.5)
+      print "Reward:", reward
     return self.preprocess(observation), reward, terminal, info
 
   def preprocess(self):
