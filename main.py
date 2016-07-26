@@ -157,7 +157,6 @@ def main(_):
       args = {'sess': sess,
               'history_length': conf.history_length,
               'observation_dims': conf.observation_dims,
-              'hidden_sizes': [],
               'output_size': n_actions,
               'hidden_activation_fn': tf.nn.relu,
               'network_output_type': conf.network_output_type}

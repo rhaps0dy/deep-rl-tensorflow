@@ -1,12 +1,11 @@
 #!/bin/bash
 T_TRAIN=100
-for ENVIRONMENT in CorridorSmall-v5 FrozenLake-v0; do
-	for SEED in 34164 63882 88106 60166 75316 48784 50067 65846 1837 43786; do
-
+for SEED in 34164 63882 88106 60166 75316 48784 50067 65846 1837 43786; do
+	for ENVIRONMENT in CorridorSmall-v5 FrozenLake-v0; do
 		echo "Vanilla DQN (seed=$SEED)"
 		python main.py --env_name=$ENVIRONMENT --async_threads=8 --agent_type=Async \
 			--history_length=1 --t_learn_start=0 --learning_rate_decay_step=10 \
-			--learning_rate=0.005 --learning_rate_minimum=0.005 --n_action_repeat=1 \
+			--learning_rate=-1 --learning_rate_minimum=-1 --n_action_repeat=1 \
 			--network_header_type=mlp --network_output_type=normal --observation_dims='[16]' \
 			--t_ep_end=10 --trace_steps=5 --use_gpu=False \
 			--entropy_regularization_minimum=0.0 --entropy_regularization=0.0 \
@@ -18,7 +17,7 @@ for ENVIRONMENT in CorridorSmall-v5 FrozenLake-v0; do
 		python main.py \
 			--env_name=$ENVIRONMENT --async_threads=8 --agent_type=Async \
 			--history_length=1 --t_learn_start=0 --learning_rate_decay_step=10 \
-			--learning_rate=0.005 --learning_rate_minimum=0.005 --n_action_repeat=1 \
+			--learning_rate=-1 --learning_rate_minimum=-1 --n_action_repeat=1 \
 			--network_header_type=mlp --network_output_type=normal --observation_dims='[16]' \
 			--t_ep_end=10 --trace_steps=5 --use_gpu=False \
 			--entropy_regularization_minimum=0.0 --entropy_regularization=0.0 \
@@ -30,7 +29,7 @@ for ENVIRONMENT in CorridorSmall-v5 FrozenLake-v0; do
 		python main.py \
 			--env_name=$ENVIRONMENT --async_threads=8 --agent_type=Async \
 			--history_length=1 --t_learn_start=0 --learning_rate_decay_step=10 \
-			--learning_rate=0.005 --learning_rate_minimum=0.005 --n_action_repeat=1 \
+			--learning_rate=-1 --learning_rate_minimum=-1 --n_action_repeat=1 \
 			--network_header_type=mlp --network_output_type=dueling \
 			--observation_dims='[16]' --t_ep_end=10 --trace_steps=5 --use_gpu=False \
 			--entropy_regularization_minimum=0.0 --entropy_regularization=0.0 \
@@ -43,7 +42,7 @@ for ENVIRONMENT in CorridorSmall-v5 FrozenLake-v0; do
 		python main.py \
 			--env_name=$ENVIRONMENT --async_threads=8 --agent_type=Async \
 			--history_length=1 --t_learn_start=0 --learning_rate_decay_step=10 \
-			--learning_rate=0.005 --learning_rate_minimum=0.005 --n_action_repeat=1 \
+			--learning_rate=-1 --learning_rate_minimum=-1 --n_action_repeat=1 \
 			--network_header_type=mlp --network_output_type=dueling \
 			--observation_dims='[16]' --t_ep_end=10 --trace_steps=5 --use_gpu=False \
 			--entropy_regularization_minimum=0.0 --entropy_regularization=0.0 \
