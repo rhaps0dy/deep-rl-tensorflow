@@ -53,7 +53,7 @@ for SEED in 34164 63882 88106 60166 75316 48784 50067 65846 1837 43786; do
 		echo "Async Advantage Actor Critic (seed=$SEED), disjoint"
 		python main.py \
 			--env_name=$ENVIRONMENT --async_threads=8 --agent_type=Async --history_length=1 \
-			--t_learn_start=2 --learning_rate_decay_step=10 --learning_rate=0.0025 \
+			--t_learn_start=0 --learning_rate_decay_step=10 --learning_rate=0.0025 \
 			--learning_rate_minimum=0.0025 --n_action_repeat=1 --network_header_type=mlp \
 			--network_output_type=actor_critic --observation_dims='[16]' --t_ep_end=10 \
 			--trace_steps=5 --use_gpu=False --entropy_regularization_minimum=0.0 \
